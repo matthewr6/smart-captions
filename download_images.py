@@ -1,5 +1,6 @@
 import csv
 import requests
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from requests_futures.sessions import FuturesSession
 from socket import gaierror
@@ -8,7 +9,6 @@ num_to_download = 2500
 max_workers = 32
 source_file = 'sources/train.tsv'
 output_dir = 'data/raw/{}.{}'
-fname_hash_len = 10
 
 class Downloader():
 
@@ -28,7 +28,7 @@ class Downloader():
             for caption, url in reader:
                 if self.should_download_image(caption):
                     r = self.session.get(url, timeout=2.5)
-                    self.requests.append(r)
+                    self.requests.append((r, url, caption))
                     count += 1
                     if count >= num_to_download:
                         return
@@ -42,34 +42,28 @@ class Downloader():
             return False
         return True
 
-    def build_fname(self, url):
-        return abs(hash(url)) % (10 ** fname_hash_len)
+    def build_fname(self, url, caption):
+        return hashlib.md5(url.encode('utf-8')).hexdigest()
 
-    # todo - should i thread this
-    def download_image(self, response):
+    def download_image(self, response, url, caption):
         ftype = response.headers['content-type'][6:].split(';')[0]
-        fname = self.build_fname(response.url)
+        fname = self.build_fname(url, caption)
         with open(output_dir.format(fname, ftype), 'wb') as f:
             f.write(response.content)
 
     def collect_responses(self):
-        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for request in self.requests:
+        count = 0 
+        for request, url, caption in self.requests:
             try:
                 response = request.result()
             except:
                 continue
             if self.valid_response(response):
-                self.download_image(response)
-                # future = executor.submit(self.download_image, response)
-                # self.writers.append(future)
-
-    # def wait_on_downloads(self):
-    #     for writer in self.writers:
-    #         writer.result()
+                count += 1
+                self.download_image(response, url, caption)
+        print('Downloaded {} images'.format(count))
 
 
 downloader = Downloader()
 downloader.get_urls()
 downloader.collect_responses()
-# downloader.wait_on_downloads()
