@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from requests_futures.sessions import FuturesSession
 from socket import gaierror
 
-num_to_download = 2500
+num_to_download = 100
 max_workers = 32
 source_file = 'sources/train.tsv'
 output_dir = 'data/raw/{}.{}'
