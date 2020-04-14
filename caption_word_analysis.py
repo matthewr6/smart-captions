@@ -3,11 +3,11 @@ import pickle
 from nltk.corpus import stopwords
 
 # read in the data
-training = pd.read_csv("Train_GCC-training.tsv", sep='\t', names = ["description", "url"])
+training = pd.read_csv("sources/train.tsv", sep='\t', names = ["description", "url"])
 
 # load the .pickle file of words if it has been generated
 try:
-    f = open("words.pickle", 'rb')
+    f = open("sources/words.pickle", 'rb')
     words = pickle.load(f)
     f.close()
 except:
@@ -21,12 +21,12 @@ except:
                 words[word] += 1
             except:
                 words[word] = 1
-    pickle.dump(words, open("words.pickle", "wb"))
+    pickle.dump(words, open("sources/words.pickle", "wb"))
 print("Full words collected")
 
 # load the .pickle file of words filtered for stopwords if it has been generated
 try:
-    f = open("filtered_words.pickle", 'rb')
+    f = open("sources/filtered_words.pickle", 'rb')
     filtered_words = pickle.load(f)
     f.close()
 except:
@@ -37,27 +37,29 @@ except:
         if word not in set(stopwords.words('english')) and word.isalnum():
             filtered_words[word] = words[word]
 
-    pickle.dump(filtered_words, open("filtered_words.pickle", "wb"))
+    pickle.dump(filtered_words, open("sources/filtered_words.pickle", "wb"))
 print("Filtered words collected")
 
 # write the words to a text file and collect the top 50
-file = open("filtered_words.txt", "w")
-num = 1
-x = []
-y = []
-z = []
-for word in filtered_words.keys():
-    output = "#" + str(num) + ": " + str(word) + ", " + str(filtered_words[word]) + "\n"
-    try:
-       file.write(output)
-       x.append(num)
-       y.append(filtered_words[word])
-       z.append(word)
-    except:
-        continue
-    num += 1
-    if num > 50:
-        break
+file = open("sources/filtered_words.txt", "w")
+with open('sources/word_subset.txt', 'w') as f:
+    num = 1
+    x = []
+    y = []
+    z = []
+    for word in filtered_words.keys():
+        output = "#" + str(num) + ": " + str(word) + ", " + str(filtered_words[word]) + "\n"
+        try:
+           file.write(output)
+           f.writeline(word + '\n')
+           x.append(num)
+           y.append(filtered_words[word])
+           z.append(word)
+        except:
+            continue
+        num += 1
+        if num > 50:
+            break
 
 file.close()
 print("Filtered words output and top 50 words found")
@@ -75,7 +77,7 @@ for caption in training["description"]:
 print("Percent of captions containing a top 50 word: " + str(count/len(training["description"])))
 
 new_training = training[training['description'].isin(captions)]
-new_training.to_csv('filtered_captions.csv', header=False)
+new_training.to_csv('sources/filtered_captions.csv', header=False)
 
 
 
