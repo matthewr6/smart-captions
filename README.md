@@ -1,1 +1,3 @@
-- Put train.tsv of captions and image URLs in sources/
+- Put `train.tsv` of captions and image URLs in sources/
+- Run `caption_word_analysis.py`
+- Run `download_images.py`

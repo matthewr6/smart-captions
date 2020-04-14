@@ -67,7 +67,7 @@ class Downloader():
         ftype = response.headers['content-type'][6:].split(';')[0]
         with open(output_dir.format(idx, ftype), 'wb') as f:
             f.write(response.content)
-        self.captions.append((original_idx, caption))
+        self.captions.append((idx, caption))
 
     def collect_responses(self):
         count = 0 

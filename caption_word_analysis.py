@@ -51,7 +51,7 @@ with open('sources/word_subset.txt', 'w') as f:
         output = "#" + str(num) + ": " + str(word) + ", " + str(filtered_words[word]) + "\n"
         try:
            file.write(output)
-           f.writeline(word + '\n')
+           f.write(word + '\n')
            x.append(num)
            y.append(filtered_words[word])
            z.append(word)
