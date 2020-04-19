@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from requests_futures.sessions import FuturesSession
 from socket import gaierror
 
-num_to_download = 100
+num_to_download = 10000
 max_workers = 32
 source_file = 'sources/train.tsv'
 output_dir = 'data/raw/{}.{}'
@@ -74,7 +74,8 @@ class Downloader():
         for request, original_idx, caption in self.requests:
             try:
                 response = request.result()
-            except:
+            except Exception as e:
+                print(e)
                 continue
             if self.valid_response(response):
                 count += 1

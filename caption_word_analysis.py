@@ -40,7 +40,8 @@ except:
     pickle.dump(filtered_words, open("sources/filtered_words.pickle", "wb"))
 print("Filtered words collected")
 
-# write the words to a text file and collect the top 50
+# write the words to a text file and collect the top n
+n = 10
 file = open("sources/filtered_words.txt", "w")
 with open('sources/word_subset.txt', 'w') as f:
     num = 1
@@ -58,11 +59,11 @@ with open('sources/word_subset.txt', 'w') as f:
         except:
             continue
         num += 1
-        if num > 50:
+        if num > n:
             break
 
 file.close()
-print("Filtered words output and top 50 words found")
+print("Filtered words output and top {} words found".format(n))
 
 
 # write all the captions containing at least one of the top 50 words to a .csv file
@@ -74,10 +75,10 @@ for caption in training["description"]:
         count+=1
         captions.append(caption)
 
-print("Percent of captions containing a top 50 word: " + str(count/len(training["description"])))
+print("Percent of captions containing a top {} word: ".format(n) + str(count/len(training["description"])))
 
-new_training = training[training['description'].isin(captions)]
-new_training.to_csv('sources/filtered_captions.csv', header=False)
+# new_training = training[training['description'].isin(captions)]
+# new_training.to_csv('sources/filtered_captions.csv', header=False)
 
 
 
