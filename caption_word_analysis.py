@@ -41,41 +41,42 @@ except:
 print("Filtered words collected")
 
 # write the words to a text file and collect the top n
-n = 10
+n = 100
 file = open("sources/filtered_words.txt", "w")
+num = 1
+top_words = []
 with open('sources/word_subset.txt', 'w') as f:
-    num = 1
-    x = []
-    y = []
-    z = []
     for word in filtered_words.keys():
         output = "#" + str(num) + ": " + str(word) + ", " + str(filtered_words[word]) + "\n"
         try:
            file.write(output)
            f.write(word + '\n')
-           x.append(num)
-           y.append(filtered_words[word])
-           z.append(word)
+           top_words.append(word)
         except:
             continue
         num += 1
         if num > n:
             break
+z = set(z)
 
 file.close()
 print("Filtered words output and top {} words found".format(n))
 
-
-# write all the captions containing at least one of the top 50 words to a .csv file
+# write all the captions containing at least one of the top N words to a .csv file
 count = 0
 captions = []
+stopword_set = set(stopwords.words('english'))
+import re
 for caption in training["description"]:
-    cap_words = list(dict.fromkeys(caption.split(" ")))
-    if (set(cap_words) & set(z)):
+    cap_words = set(filter(None, re.sub(r'[^a-zA-Z ]', '', caption).split(" ")))
+    cap_words -= stopword_set 
+    # if cap_words & set(z):
+    # print(cap_words)
+    if cap_words.issubset(z):
         count+=1
         captions.append(caption)
 
-print("Percent of captions containing a top {} word: ".format(n) + str(count/len(training["description"])))
+print("Percent of captions containing all top {} words: ".format(n) + str(count/len(training["description"])))
 
 # new_training = training[training['description'].isin(captions)]
 # new_training.to_csv('sources/filtered_captions.csv', header=False)

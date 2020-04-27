@@ -12,7 +12,7 @@ max_workers = 32
 source_file = 'sources/train.tsv'
 output_dir = 'data/raw/{}.{}'
 word_subset_file = 'sources/word_subset.txt'
-caption_output_file = 'data/captions.csv'
+caption_output_file = 'data/captions_raw.csv'
 
 class Downloader():
 
