@@ -7,7 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 from requests_futures.sessions import FuturesSession
 from socket import gaierror
 
-num_to_download = 10000
+# so far, 0 - 17500
+
+start_num = 0#12500
+num_to_download = 17500
 max_workers = 32
 source_file = 'sources/train.tsv'
 output_dir = 'data/raw/{}.{}'
@@ -42,6 +45,9 @@ class Downloader():
             reader = csv.reader(file, delimiter='\t')
             for idx, (caption, url) in enumerate(reader):
                 if self.should_download_image(idx, url, caption):
+                    if count < start_num:
+                        count += 1
+                        continue
                     if self.image_is_downloaded(idx):
                         count += 1
                         self.captions.append((idx, caption))
@@ -51,6 +57,8 @@ class Downloader():
                     r = self.session.get(url, timeout=2.5)
                     self.requests.append((r, idx, caption))
                     count += 1
+                    if count % 100 == 0:
+                        print(count)
                     if count >= num_to_download:
                         return
 

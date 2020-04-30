@@ -5,7 +5,7 @@ import csv
 from PIL import Image
 
 raw_path = 'data/raw/*'
-size = (400, 400)
+size = (250, 250)
 processed_path = 'data/processed/{}'
 raw_captions = 'data/captions_raw.csv'
 index_file = 'data/captions.csv'
