@@ -16,11 +16,11 @@ df.set_index('id', inplace=True)
 img_height = 400
 img_width = 400
 
-def generator(num=100):
+def generator(batch_size=100):
     i = len(image_list)
     while True:
         batch = {'images': [], 'captions': []}
-        for b in range(num):
+        for b in range(batch_size):
             if i == len(image_list):
                 i = 0
                 # random.shuffle(image_list)
@@ -44,6 +44,6 @@ def generator(num=100):
         yield [batch['images'], batch['captions']]
 
 if __name__ == '__main__':
-    gen = generator(num=100)
+    gen = generator(batch_size=100)
     n = next(gen)
     print(n[0].shape, n[1].shape)
