@@ -9,8 +9,8 @@ import os
 # datagen = ImageDataGenerator()
 
 # Read the image list and csv
-image_list = glob('data/processed/*.*')
-df = pd.read_csv('data/captions.csv', header=None, names=['id', 'caption'])
+image_list = glob('../data/processed/*.*')
+df = pd.read_csv('../data/captions.csv', header=None, names=['id', 'caption'])
 df.set_index('id', inplace=True)
 
 img_height = 400
@@ -43,6 +43,7 @@ def generator(num=100):
 
         yield [batch['images'], batch['captions']]
 
-gen = generator(num=100)
-n = next(gen)
-print(n[0].shape, n[1].shape)
+if __name__ == '__main__':
+    gen = generator(num=100)
+    n = next(gen)
+    print(n[0].shape, n[1].shape)

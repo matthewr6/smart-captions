@@ -12,10 +12,10 @@ from socket import gaierror
 start_num = 0#12500
 num_to_download = 17500
 max_workers = 32
-source_file = 'sources/train.tsv'
-output_dir = 'data/raw/{}.{}'
-word_subset_file = 'sources/word_subset.txt'
-caption_output_file = 'data/captions_raw.csv'
+source_file = '../sources/train.tsv'
+output_dir = '../data/raw/{}.{}'
+word_subset_file = '../sources/word_subset.txt'
+caption_output_file = '../data/captions_raw.csv'
 
 class Downloader():
 

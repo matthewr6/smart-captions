@@ -2,9 +2,9 @@ import os
 import csv
 import glob
 
-img_location = 'data/processed/*.*'
-source_file = 'sources/train.tsv'
-caption_output_file = 'data/captions.csv'
+img_location = '../data/processed/*.*'
+source_file = '../sources/train.tsv'
+caption_output_file = '../data/captions.csv'
 
 images = glob.glob(img_location)
 images = [int(os.path.basename(i).split('.')[0]) for i in images]

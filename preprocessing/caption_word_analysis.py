@@ -3,11 +3,11 @@ import pickle
 from nltk.corpus import stopwords
 
 # read in the data
-training = pd.read_csv("sources/train.tsv", sep='\t', names = ["description", "url"])
+training = pd.read_csv("../sources/train.tsv", sep='\t', names = ["description", "url"])
 
 # load the .pickle file of words if it has been generated
 try:
-    f = open("sources/words.pickle", 'rb')
+    f = open("../sources/words.pickle", 'rb')
     words = pickle.load(f)
     f.close()
 except:
@@ -21,12 +21,12 @@ except:
                 words[word] += 1
             except:
                 words[word] = 1
-    pickle.dump(words, open("sources/words.pickle", "wb"))
+    pickle.dump(words, open("../sources/words.pickle", "wb"))
 print("Full words collected")
 
 # load the .pickle file of words filtered for stopwords if it has been generated
 try:
-    f = open("sources/filtered_words.pickle", 'rb')
+    f = open("../sources/filtered_words.pickle", 'rb')
     filtered_words = pickle.load(f)
     f.close()
 except:
@@ -37,15 +37,15 @@ except:
         if word not in set(stopwords.words('english')) and word.isalnum():
             filtered_words[word] = words[word]
 
-    pickle.dump(filtered_words, open("sources/filtered_words.pickle", "wb"))
+    pickle.dump(filtered_words, open("../sources/filtered_words.pickle", "wb"))
 print("Filtered words collected")
 
 # write the words to a text file and collect the top n
 n = 100
-file = open("sources/filtered_words.txt", "w")
+file = open("../sources/filtered_words.txt", "w")
 num = 1
 top_words = []
-with open('sources/word_subset.txt', 'w') as f:
+with open('../sources/word_subset.txt', 'w') as f:
     for word in filtered_words.keys():
         output = "#" + str(num) + ": " + str(word) + ", " + str(filtered_words[word]) + "\n"
         try:

@@ -4,11 +4,12 @@ import os
 import csv
 from PIL import Image
 
-raw_path = 'data/raw/*'
+raw_path = '../data/raw/*'
 size = (250, 250)
-processed_path = 'data/processed/{}'
-raw_captions = 'data/captions_raw.csv'
-index_file = 'data/captions.csv'
+processed_path = '../data/processed/{}'
+processed_file_loc = '../data/processed/{}.npy'
+raw_captions = '../data/captions_raw.csv'
+index_file = '../data/captions.csv'
 
 class ImageProcessor():
 
@@ -31,7 +32,7 @@ class ImageProcessor():
     def process_all(self):
         for fname in glob.glob(raw_path):
             img_id = os.path.basename(fname).split('.')[0]
-            if not os.path.isfile('data/processed/{}.npy'.format(img_id)):
+            if not os.path.isfile(processed_file_loc.format(img_id)):
                 self.process_single_image(fname)
 
     def remove_failed_from_index(self):
