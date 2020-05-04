@@ -15,11 +15,11 @@ from tensorflow.keras.layers import (
 )
 
 # Call model = AdversarialModel(GeneratorModelName(), generator)
-class AdversarialModel():
+class AdversarialModelV1():
 
     def __init__(self, generator, name='experimental', *args, **kwargs):
         self.generator = generator
-        self.data = data
+        # self.data = data
         self.name = name
         self.discriminator = None
         self.full_model = None
@@ -38,9 +38,12 @@ class AdversarialModel():
             img = Dense(nodes)(img)
             img = LeakyReLU(alpha=0.2)(img)
 
-        caption_input = Input(shape=(None, 50)) # todo - need to pad input
-        caption = LSTM(25)(caption_input)
-        for nodes in [32, 64, 64]:
+        caption_input = Input(shape=(50,)) # todo - need to pad input automatically in model training? or preprocessing?
+        # todo - look more into how this works, RNN vs LSTM vs GRU
+        # caption = LSTM(25)(caption_input)
+        # for V1 let's just go simple.
+        caption = Dense(100)(caption_input)
+        for nodes in [128, 256, 128]:
             caption = Dense(nodes)(caption)
             caption = LeakyReLU(alpha=0.2)(caption)
 
@@ -50,27 +53,30 @@ class AdversarialModel():
             combined = LeakyReLU(alpha=0.2)(combined)
         combined = Dense(1, activation='sigmoid')(combined)
 
-        self.discriminator = keras.Model(inputs=[img_input, caption_input], outputs=[combined], name='adversarial_caption')
+        self.discriminator = keras.Model(inputs=[img_input, caption_input], outputs=[combined], name='adversarial_caption_v1')
 
     def connect_generator(self):
-        # i have no idea if the inputs/outputs works but this is the genearl idea.
-        self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + self.discriminator.outputs)
+        adversarial_output = self.discriminator([self.generator.inputs, self.generator.outputs])
+        self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + adversarial_output)
 
     def show_model_structures(self):
         if self.discriminator:
             keras.utils.plot_model(self.discriminator, 'discriminator_{}.png'.format(self.name))
-            print(self.discriminator.summary())
+            # print(self.discriminator.summary())
         if self.generator:
-            keras.utils.plot_model(self.generator, 'generator_{}.png'.format(self.name))
-            print(self.generator.summary())
+            keras.utils.plot_model(self.generator.model, 'generator_{}.png'.format(self.name))
+            # print(self.generator.model.summary())
+        keras.utils.plot_model(self.full_model, 'full_{}.png'.format(self.name))
+        print(self.full_model.summary())
 
-    def train(self, epochs, batch_size=10):
+
+    def train(self, datagen, epochs, batch_size=10):
         real = np.ones((batch_size,))
         fake = np.zeros((batch_size,))
         for epoch in range(epochs):
             # design choice - this iterates thru N individually per epoch; do we want to
             # not iterate and just batch? let's find out thru speed tests...
-            for batch_idx, (images, real_captions) in enumerate(self.data(batch_size=batch_size)):
+            for batch_idx, (images, real_captions) in enumerate(datagen(batch_size=batch_size)):
                 fake_captions = self.generator.predict(images)
 
                 real_loss = self.discriminator.train_on_batch([images, real_captions], real)

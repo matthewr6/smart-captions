@@ -16,7 +16,7 @@ df.set_index('id', inplace=True)
 img_height = 400
 img_width = 400
 
-def generator(batch_size=100):
+def data_generator(batch_size=100):
     i = len(image_list)
     while True:
         batch = {'images': [], 'captions': []}
