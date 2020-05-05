@@ -56,8 +56,8 @@ class AdversarialModelV1():
         self.discriminator = keras.Model(inputs=[img_input, caption_input], outputs=[combined], name='adversarial_caption_v1')
 
     def connect_generator(self):
-        adversarial_output = self.discriminator([self.generator.inputs, self.generator.outputs])
-        self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + adversarial_output)
+        adversarial_outputs = self.discriminator([self.generator.inputs, self.generator.outputs])
+        self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + adversarial_outputs)
 
     def show_model_structures(self):
         if self.discriminator:
@@ -87,6 +87,6 @@ class AdversarialModelV1():
                 # this also makes assumptions; i assume they're justified in the pix2pix paper.
                 # we can also freeze the discriminator model's weights before training the combined model.
                 # https://github.com/eriklindernoren/Keras-GAN/blob/master/pix2pix/pix2pix.py
-                generator_loss = self.full_model.train_on_batch([images, real_captions], [real_captions, valid])
+                generator_loss = self.full_model.train_on_batch([images, real_captions], [real_captions, real])
 
                 print('Epoch {}/{}:\n\tD Loss {}, acc {}\n\tG Loss {}'.format(epoch, epochs, discriminator_loss, ))
