@@ -65,6 +65,7 @@ class AdversarialModelV1():
         # Ignore the warning; we want to make the discriminator trainable but only alone.
         adversarial_output = self.discriminator(self.generator.inputs + self.generator.outputs)
         self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + [adversarial_output], name='combined')
+        # self.full_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy']) # TODO LATER: change to this
         self.full_model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 
     def show_model_structures(self):

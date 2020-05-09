@@ -55,12 +55,15 @@ def data_generator(batch_size=100):
             # caption = df.loc[int(image_name)][0]
             caption = data[image_name]
 
+            if image.shape[2] == 4:
+                image = image[...,:3]
+
             batch['images'].append(image)
             # print(image.shape)
             batch['captions'].append(caption)
 
             i += 1
-
+            
         batch['images'] = np.array(batch['images'])
         batch['captions'] = np.array(batch['captions'])
 
