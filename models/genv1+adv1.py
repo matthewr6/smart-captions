@@ -4,4 +4,4 @@ from single_stage_generator_v1 import SingleStageGeneratorV1
 
 model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
 
-model.train(data_generator(batch_size=100))
+model.train(data_generator, epochs=500)

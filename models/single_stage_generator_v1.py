@@ -15,6 +15,8 @@ from tensorflow.keras.layers import (
     MaxPooling2D
 )
 
+OUTPUT_SIZE = 30
+
 class SingleStageGeneratorV1():
 
     def __init__(self, *args, **kwargs):
@@ -27,7 +29,6 @@ class SingleStageGeneratorV1():
         img_input = Input(shape=(250, 250, 3))
         self.inputs = [img_input]
 
-        # https://github.com/zhixuhao/unet/blob/master/model.py
         pooling_freq = 2
         encoder = img_input
         for idx, filters in enumerate([64, 64, 128, 128, 128, 256, 1024]):
@@ -35,25 +36,9 @@ class SingleStageGeneratorV1():
             if (idx + 1) % pooling_freq == 0:
                 encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
 
-        # encoder = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
-        # encoder = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Dropout(0.5)(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Dropout(0.5)(encoder)
-
         encoder_output = Flatten()(encoder)
 
+        # https://github.com/zhixuhao/unet/blob/master/model.py
         # todo - look more into how this works, RNN vs LSTM vs GRU
         # maybe just use dense layers directly for V1 as proof of concept...
         # decoder = LSTM(50)(encoder)
@@ -67,7 +52,7 @@ class SingleStageGeneratorV1():
             decoder = Dense(nodes)(decoder)
             decoder = LeakyReLU(alpha=0.2)(decoder)
 
-        decoder_output = Dense(50, activation='sigmoid')(decoder)
+        decoder_output = Dense(OUTPUT_SIZE, activation='sigmoid')(decoder)
         self.outputs = [decoder_output]
 
         self.model = keras.Model(inputs=self.inputs, outputs=self.outputs, name='single_stage_generator_v1')

@@ -28,6 +28,16 @@ data = load_captions()
 img_height = 400
 img_width = 400
 
+cache = {}
+use_cache = False
+def load_image(image_path):
+    if cache.get(image_path):
+        return cache.get(image_path)
+    image = np.load(image_path)
+    if use_cache:
+        cache[image_path] = image
+    return image
+
 def data_generator(batch_size=100):
     i = len(image_list)
     while True:
@@ -39,7 +49,7 @@ def data_generator(batch_size=100):
 
             image_path = image_list[i]
             image_name = os.path.basename(image_path).split('.')[0]
-            image = np.load(image_path)
+            image = load_image(image_path)
 
             # Read data from csv using the name of current image
             # caption = df.loc[int(image_name)][0]
