@@ -2,3 +2,5 @@ data/*
 sources/*
 *.tar.gz
 *.pyc
+copy-models
+__pycache__/
