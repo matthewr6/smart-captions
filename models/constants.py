@@ -22,11 +22,15 @@ nonrare_words = get_nonrare_words()
 # VOCAB_SIZE = len(words) + 1
 NUM_SIGNAL_TOKENS = 2
 VOCAB_SIZE = len(nonrare_words) + NUM_SIGNAL_TOKENS
+print('Vocab size = {}'.format(VOCAB_SIZE))
 int_to_word = {}
 for idx, word in enumerate(words):
     int_to_word[idx] = word[:-1]
 
 MAX_SEQ_LEN = 30 
+
+START_TOKEN = 0
+STOP_TOKEN = 1
 
 def seqs_to_captions(seqs):
     captions = []
@@ -41,5 +45,5 @@ def seqs_to_captions(seqs):
                 break
             else:
                 caption += int_to_word[true_idx - NUM_SIGNAL_TOKENS]
-        captions.append(caption)
+        captions.append(caption.strip())
     return captions

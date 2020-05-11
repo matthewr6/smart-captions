@@ -31,14 +31,12 @@ def load_captions():
             if w_idx in nonrare_words:
                 word_vector.append(int(w_idx) + 2)
         word_vector.append(1)
-        # word_vector = np.pad(word_vector, (0, MAX_SEQ_LEN - len(word_vector)))
         word_vector = to_categorical(word_vector, num_classes=VOCAB_SIZE)
         loaded[img_idx] = np.pad(word_vector, ((MAX_SEQ_LEN - word_vector.shape[0], 0), (0, VOCAB_SIZE - word_vector.shape[1])))
     return loaded
 
 # Read the image list and csv
-# TEMP SLICING
-image_list = glob('../data/processed/*.*')[:1]
+image_list = glob('../data/processed/*.*')#[:10]
 data = load_captions()
 
 cache = {}
@@ -54,7 +52,6 @@ def load_image(image_path):
 def data_generator(batch_size=100):
     i = len(image_list)
     while True:
-        # batch = {'images': [], 'captions': [], 'next_word': []}
         batch = {'images': [], 'captions': []}
         for b in range(batch_size):
             if i == len(image_list):
@@ -65,19 +62,10 @@ def data_generator(batch_size=100):
             image_name = os.path.basename(image_path).split('.')[0]
             image = load_image(image_path)
 
-            # Read data from csv using the name of current image
-            # caption = df.loc[int(image_name)][0]
             caption = data[image_name]
 
             if image.shape[2] == 4:
                 image = image[...,:3]
-
-            # for i in range(MAX_SEQ_LEN):
-            #     batch['images'].append(image)
-            #     partial = caption[:i]
-            #     padded_partial = np.pad(partial, ((0, MAX_SEQ_LEN - partial.shape[0]), (0, VOCAB_SIZE - partial.shape[1])))
-            #     batch['captions'].append(padded_partial)
-            #     batch['next_word'].append(caption[i])
 
             batch['images'].append(image)
             batch['captions'].append(caption)
@@ -86,9 +74,8 @@ def data_generator(batch_size=100):
             
         batch['images'] = np.array(batch['images'])
         batch['captions'] = np.array(batch['captions'])
-        # batch['next_word'] = np.array(batch['next_word'])
 
-        yield [batch['images'], batch['captions']]#, batch['next_word']]
+        yield [batch['images'], batch['captions']]
 
 def partial_generator(caption):
     batch = {'next_words': [], 'captions': []}
@@ -98,19 +85,16 @@ def partial_generator(caption):
             break
 
         partial = caption[:i]
-        # todo is this right
-        # padded_partial = np.pad(partial, ((MAX_SEQ_LEN - partial.shape[0], 0), (0, VOCAB_SIZE - partial.shape[1])))
         padded_partial = np.pad(partial, ((MAX_SEQ_LEN - partial.shape[0], 0), (0, VOCAB_SIZE - partial.shape[1])))
-        # padded_partial[:i, 2] = 1 
         batch['captions'].append(padded_partial)
         batch['next_words'].append(caption[i])
+
     batch['captions'] = np.array(batch['captions'])
     batch['next_words'] = np.array(batch['next_words'])
     return batch['captions'], batch['next_words']
 
 if __name__ == '__main__':
     gen = data_generator(batch_size=13)
-    # for i in range(10):
     images, captions = next(gen)
     print(np.argmax(captions[0], axis=1))
     partial_captions, next_words = partial_generator(captions[0])

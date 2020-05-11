@@ -7,10 +7,10 @@ from single_stage_generator_v1 import SingleStageGeneratorV1
 
 # model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
 model = SingleStageGeneratorV1()
-model.train(data_generator, epochs=15, batch_size=25)
+model.train(data_generator, epochs=200, batch_size=25)
 # model.compile()
 
-gen = data_generator(batch_size=1)
+gen = data_generator(batch_size=25)
 images, captions = next(gen)
 
 captions = np.argmax(captions, axis=2)

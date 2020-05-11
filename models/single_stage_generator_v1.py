@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from datetime import datetime
 
+import matplotlib.pyplot as plt
 from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras.applications import (
@@ -64,48 +65,32 @@ class SingleStageGeneratorV1():
             layer.trainable = False
 
         # img = BatchNormalization()(pretrained_cnn.output)
-        img = Dense(128)(pretrained_cnn.output)
+        img = Dense(256, activation='relu')(pretrained_cnn.output)
         img = RepeatVector(MAX_SEQ_LEN)(img)
 
 
         # https://github.com/chen0040/keras-image-captioning/blob/master/keras_image_captioning/library/vgg16_lstm.py
 
         previous_words = Input(shape=(MAX_SEQ_LEN, VOCAB_SIZE), name='gen_cur_words')
-        recurrent_layer = LSTM(128, return_sequences=True)(previous_words)
+        recurrent_layer = LSTM(256, return_sequences=True)(previous_words)
 
         combined = Concatenate()([img, recurrent_layer])
-        combined = LSTM(128, return_sequences=False)(combined)
+        combined = LSTM(1024, return_sequences=False)(combined)
         combined = Dense(VOCAB_SIZE, activation='softmax')(combined)
 
         self.inputs.append(previous_words)
         self.outputs = [combined]
         self.model = keras.Model(inputs=self.inputs, outputs=self.outputs, name='single_stage_generator_v1')
 
-    # def custom_loss(self, y_true, y_pred):
-    #     return tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred, 2)
-
     def compile(self):
         # rmsprop, adagrad, adadelta might be best options
-        # optimizer = RMSprop(lr=0.01)
-        optimizer = RMSprop()
+        optimizer = Adagrad(lr=0.001)
         loss = CategoricalCrossentropy(from_logits=False)
         self.model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
         self.compiled = True
         print(self.model.summary())
 
     def predict(self, images):
-        # create null tokens
-        # initial = np.zeros((images.shape[0], MAX_SEQ_LEN, VOCAB_SIZE))
-
-        # # insert start tokens
-        # initial[:, -1, :] = 0
-        # initial[:, -1, 0] = 1
-
-        # for i in range(MAX_SEQ_LEN - 1, 0, -1):
-        #     predictions = self.model.predict([images, initial])
-        #     initial = np.roll(initial, -1, axis=1)
-        #     initial[:, -1, :] = predictions
-        # return np.argmax(initial, axis=2)
         captions = []
         for image in images:
             initial = np.zeros((MAX_SEQ_LEN, VOCAB_SIZE))
@@ -113,7 +98,7 @@ class SingleStageGeneratorV1():
             initial[-1, 0] = 1
 
             for i in range(MAX_SEQ_LEN - 1, 0, -1):
-                prediction = self.model.predict([[image], [initial]])[0]
+                prediction = self.model.predict([np.array([image]), np.array([initial])])[0]
                 initial = np.roll(initial, -1, axis=0)
                 initial[-1, :] = prediction
                 if np.argmax(prediction) == 1:
@@ -128,6 +113,7 @@ class SingleStageGeneratorV1():
         if not self.compiled:
             self.compile()
         start_time = datetime.now()
+        loss_history = []
         for epoch, (images, captions) in enumerate(datagen(batch_size=batch_size)):
             loss = 0
             accuracy = 0
@@ -142,7 +128,8 @@ class SingleStageGeneratorV1():
             loss /= batch_size
             accuracy /= batch_size
             elapsed_time = datetime.now() - start_time
-            print('[Epoch {}/{}] [Loss: {}] [Acc: {}] time: {}'.format(
+            loss_history.append(loss)
+            print('[Epoch {}/{}] [Loss: {}] [Acc%: {}] time: {}'.format(
                 epoch,
                 epochs,
                 round(loss, 2),
@@ -152,6 +139,12 @@ class SingleStageGeneratorV1():
 
             if epoch >= epochs:
                 break
+
+        plt.plot(range(0, epochs + 1), loss_history, label='Training Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.savefig('loss_history.png')
 
         self.model.save('model_generator')
 
