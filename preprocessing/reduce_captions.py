@@ -147,6 +147,8 @@ def get_words(word_indexes, ext=""):
 
         returns a string reconstruction of the given words
     """
+    if ext != '':
+        ext = '_' + ext
     with open("../data/captions_lookup" + ext + '.txt', "r") as f:
         reader = csv.reader(f)
         words = list(reader)
@@ -156,6 +158,8 @@ def get_lookup(ext=""):
     """
         Returns the list of words used to lookup indexes with extension ext
     """
+    if ext != '':
+        ext = '_' + ext
     with open("../data/captions_lookup" + ext + '.txt', "r") as f:
         reader = csv.reader(f)
         words = list(reader)
