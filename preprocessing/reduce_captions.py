@@ -101,8 +101,6 @@ def vectorize_captions(caption_file, ext="", stopwords=set(), do_stem=True):
                 described with the index of each word in captions_lookup
             the words are sorted by number of occurences
     """
-    if ext != "":
-        ext = "_" + ext
     ext += '.txt'
     captions = load_captions(caption_file)
     captions = clean_captions(captions, stopwords, do_stem=do_stem) 
@@ -132,6 +130,8 @@ def get_captions(ext=""):
         returns a dictionary from index to integer word indexes
         of the captions saved the the extension ext
     """
+    if ext != '':
+        ext = '_' + ext
     with open("../data/captions" + ext + '.txt', "r") as f:
         reader = csv.reader(f)
         lines = list(reader)
@@ -163,7 +163,7 @@ def get_lookup(ext=""):
     with open("../data/captions_lookup" + ext + '.txt', "r") as f:
         reader = csv.reader(f)
         words = list(reader)
-    return words
+    return [word[0] for word in words]
 
 def main():
     caption_file = '../data/captions.csv'
