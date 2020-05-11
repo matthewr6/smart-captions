@@ -22,47 +22,47 @@ OFFSET = 2
 def load_captions():
     with open('../data/captions.txt') as f:
         data = f.readlines()
-    loaded = {}
+    loaded = []
     for example in data:
         example = example[:-1].split(',')
-        img_idx = example[0]
+        img_name = example[0].split('.')[0]
         word_vector = [0]
         for w_idx in example[1:]:
             if w_idx in nonrare_words:
                 word_vector.append(int(w_idx) + 2)
         word_vector.append(1)
         word_vector = to_categorical(word_vector, num_classes=VOCAB_SIZE)
-        loaded[img_idx] = np.pad(word_vector, ((MAX_SEQ_LEN - word_vector.shape[0], 0), (0, VOCAB_SIZE - word_vector.shape[1])))
+        loaded.append((
+            img_name,
+            np.pad(word_vector, ((MAX_SEQ_LEN - word_vector.shape[0], 0), (0, VOCAB_SIZE - word_vector.shape[1])))
+        ))
     return loaded
 
 # Read the image list and csv
-image_list = glob('../data/processed/*.*')#[:10]
-data = load_captions()
+data = load_captions() # array of (name, encoded caption)
 
 cache = {}
 use_cache = False
 def load_image(image_path):
     if cache.get(image_path):
         return cache.get(image_path)
-    image = np.load(image_path)
+    image = np.load('../flickr8k_data/processed/{}.npy'.format(image_path))
     if use_cache:
         cache[image_path] = image
     return image
 
 def data_generator(batch_size=100):
-    i = len(image_list)
+    i = len(data)
     while True:
         batch = {'images': [], 'captions': []}
         for b in range(batch_size):
-            if i == len(image_list):
+            if i == len(data):
                 i = 0
-                random.shuffle(image_list)
+                random.shuffle(data)
 
-            image_path = image_list[i]
-            image_name = os.path.basename(image_path).split('.')[0]
-            image = load_image(image_path)
+            image_name, caption = data[i]
 
-            caption = data[image_name]
+            image = load_image(image_name)
 
             if image.shape[2] == 4:
                 image = image[...,:3]
