@@ -1,4 +1,7 @@
 data/*
+flickr8k_data/*
 sources/*
 *.tar.gz
 *.pyc
+copy-models
+__pycache__/

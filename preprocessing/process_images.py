@@ -4,12 +4,14 @@ import os
 import csv
 from PIL import Image
 
-raw_path = '../data/raw/*'
+datapath = 'flickr8k_data'
+
+raw_path = '../' + datapath + '/raw/*'
 size = (250, 250)
-processed_path = '../data/processed/{}'
-processed_file_loc = '../data/processed/{}.npy'
-raw_captions = '../data/captions_raw.csv'
-index_file = '../data/captions.csv'
+processed_path = '../' + datapath + '/processed/{}'
+processed_file_loc = '../' + datapath + '/processed/{}.npy'
+raw_captions = '../' + datapath + '/captions_raw.csv'
+index_file = '../' + datapath + '/captions.csv'
 
 class ImageProcessor():
 
@@ -45,4 +47,4 @@ class ImageProcessor():
 
 processor = ImageProcessor()
 processor.process_all()
-processor.remove_failed_from_index()
+# processor.remove_failed_from_index()

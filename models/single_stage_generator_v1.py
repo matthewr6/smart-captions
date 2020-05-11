@@ -1,8 +1,20 @@
 import numpy as np
 import tensorflow as tf
 
+from datetime import datetime
+
+import matplotlib.pyplot as plt
 from tensorflow import keras
 from tensorflow.keras import Model
+from tensorflow.keras.applications import (
+    VGG16,
+    VGG19,
+)
+from tensorflow.keras.optimizers import (
+    RMSprop,
+    Adagrad,
+    Adadelta
+)
 from tensorflow.keras.layers import (
     Input,
     Dense,
@@ -12,8 +24,28 @@ from tensorflow.keras.layers import (
     LSTM,
     Conv2D,
     LeakyReLU,
-    MaxPooling2D
+    MaxPooling2D,
+    Dropout,
+    RepeatVector,
+    GRU,
+    SimpleRNN,
+    BatchNormalization,
+    TimeDistributed
 )
+
+from tensorflow.keras.losses import (
+    CategoricalCrossentropy
+)
+
+from tensorflow.keras.utils import to_categorical
+
+from data_generator import partial_generator
+
+RecurrentLayer = GRU
+
+# NUM_CHARS = 29
+
+from constants import VOCAB_SIZE, MAX_SEQ_LEN
 
 class SingleStageGeneratorV1():
 
@@ -21,54 +53,101 @@ class SingleStageGeneratorV1():
         self.inputs = None
         self.outputs = None
         self.model = None
+        self.compiled = False
         self.build()
 
     def build(self):
-        img_input = Input(shape=(250, 250, 3))
+        img_input = Input(shape=(250, 250, 3), name='gen_img_input')
         self.inputs = [img_input]
 
-        # https://github.com/zhixuhao/unet/blob/master/model.py
-        pooling_freq = 2
-        encoder = img_input
-        for idx, filters in enumerate([64, 64, 128, 128, 128, 256, 1024]):
-            encoder = Conv2D(filters, 3, activation='relu')(encoder)
-            if (idx + 1) % pooling_freq == 0:
-                encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
+        pretrained_cnn = VGG16(weights='imagenet', include_top=True, input_tensor=img_input)
+        for layer in pretrained_cnn.layers:
+            layer.trainable = False
 
-        # encoder = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
-        # encoder = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Dropout(0.5)(encoder)
-        # encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
-        # encoder = Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(encoder)
-        # encoder = Dropout(0.5)(encoder)
+        # img = BatchNormalization()(pretrained_cnn.output)
+        img = Dense(256, activation='relu')(pretrained_cnn.output)
+        img = RepeatVector(MAX_SEQ_LEN)(img)
 
-        encoder_output = Flatten()(encoder)
 
-        # todo - look more into how this works, RNN vs LSTM vs GRU
-        # maybe just use dense layers directly for V1 as proof of concept...
-        # decoder = LSTM(50)(encoder)
-        # see section 10 of https://towardsdatascience.com/image-captioning-with-keras-teaching-computers-to-describe-pictures-c88a46a311b8
-        # i think the true output is the concat of sequence input + output (and the output we train on is the potentially the single item alone)
-        # actually, I think the optimal solution is to have the generative network output a purely dense output, and have the adversarial network
-        # take in an RNN input from this and predict 1/0 on that - see also https://towardsdatascience.com/generating-pokemon-inspired-music-from-neural-networks-bc240014132
-        # i should also do skip connections (with one hidden layer in the skip) in v2!
-        decoder = Dense(256)(encoder_output)
-        for nodes in [256, 128, 128, 64, 64]:
-            decoder = Dense(nodes)(decoder)
-            decoder = LeakyReLU(alpha=0.2)(decoder)
+        # https://github.com/chen0040/keras-image-captioning/blob/master/keras_image_captioning/library/vgg16_lstm.py
 
-        decoder_output = Dense(50, activation='sigmoid')(decoder)
-        self.outputs = [decoder_output]
+        previous_words = Input(shape=(MAX_SEQ_LEN, VOCAB_SIZE), name='gen_cur_words')
+        recurrent_layer = LSTM(256, return_sequences=True)(previous_words)
 
+        combined = Concatenate()([img, recurrent_layer])
+        combined = LSTM(1024, return_sequences=False)(combined)
+        combined = Dense(VOCAB_SIZE, activation='softmax')(combined)
+
+        self.inputs.append(previous_words)
+        self.outputs = [combined]
         self.model = keras.Model(inputs=self.inputs, outputs=self.outputs, name='single_stage_generator_v1')
-    
+
+    def compile(self):
+        # rmsprop, adagrad, adadelta might be best options
+        optimizer = Adagrad(lr=0.001)
+        loss = CategoricalCrossentropy(from_logits=False)
+        self.model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+        self.compiled = True
+        print(self.model.summary())
+
+    def predict(self, images):
+        captions = []
+        for image in images:
+            initial = np.zeros((MAX_SEQ_LEN, VOCAB_SIZE))
+            initial[-1, :] = 0
+            initial[-1, 0] = 1
+
+            for i in range(MAX_SEQ_LEN - 1, 0, -1):
+                prediction = self.model.predict([np.array([image]), np.array([initial])])[0]
+                initial = np.roll(initial, -1, axis=0)
+                initial[-1, :] = prediction
+                if np.argmax(prediction) == 1:
+                    break
+            captions.append(np.argmax(initial, axis=1))
+        return captions
+
+    def load(self, load_path):
+        self.model = keras.models.load_model(load_path)
+
+    def train(self, datagen, epochs, batch_size=10):
+        if not self.compiled:
+            self.compile()
+        start_time = datetime.now()
+        loss_history = []
+        for epoch, (images, captions) in enumerate(datagen(batch_size=batch_size)):
+            loss = 0
+            accuracy = 0
+
+            for idx, image in enumerate(images): 
+                partial_captions, next_words = partial_generator(captions[idx])
+                duped_images = np.stack((image,) * len(partial_captions), axis=0)
+                partial_loss, partial_accuracy = self.model.train_on_batch([duped_images, partial_captions], next_words)
+                loss += partial_loss
+                accuracy += partial_accuracy
+
+            loss /= batch_size
+            accuracy /= batch_size
+            elapsed_time = datetime.now() - start_time
+            loss_history.append(loss)
+            print('[Epoch {}/{}] [Loss: {}] [Acc%: {}] time: {}'.format(
+                epoch,
+                epochs,
+                round(loss, 2),
+                round(100 * accuracy),
+                elapsed_time,
+            ))
+
+            if epoch >= epochs:
+                break
+
+        plt.plot(range(0, epochs + 1), loss_history, label='Training Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.savefig('loss_history.png')
+
+        self.model.save('model_generator')
+
+if __name__ == '__main__':
+    model = SingleStageGeneratorV1()
+    model.compile()

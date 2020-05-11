@@ -28,10 +28,12 @@ def load_captions(filename):
     with open(filename, 'r') as f:
         reader = csv.reader(f)
         lines = list(reader)
-        lines = [(int(idx), caption) for idx, caption in lines]
+        # lines = [caption for caption in lines]
+        # lines = [caption for name, caption in lines]
     
     
-    return dict(lines)
+    # return dict(lines)
+    return lines
 
 
 def clean_captions(captions, stopwords=set(), do_stem=True):
@@ -39,10 +41,16 @@ def clean_captions(captions, stopwords=set(), do_stem=True):
         captions : dict from index to caption as a string
         returns a dict with the values replaced with lists of words
     """
+<<<<<<< HEAD
     new_captions = {}
     if do_stem:
         stemmer = PorterStemmer()
     for idx, caption in captions.items():
+=======
+    new_captions = []
+    stemmer = PorterStemmer()
+    for idx, (name, caption) in enumerate(captions):
+>>>>>>> 3e790fbd6e8690de660564469b1ad87ec12a2e67
         # Strip ad split the caption
         new_caption = []
         for s in caption.split():
@@ -56,7 +64,7 @@ def clean_captions(captions, stopwords=set(), do_stem=True):
                 s = '#'
             new_caption.append(s)
 
-        new_captions[idx] = new_caption
+        new_captions.append((name, new_caption))
     return new_captions
 
 def get_text_corpus(filename):
@@ -106,7 +114,7 @@ def vectorize_captions(caption_file, ext="", stopwords=set(), do_stem=True):
     captions = clean_captions(captions, stopwords, do_stem=do_stem) 
     corpus = []
 
-    for _, caption in captions.items():
+    for _, caption in captions:
         corpus += caption
     counts = Counter(corpus).most_common()
     words = [s for s, _ in counts]
@@ -118,9 +126,9 @@ def vectorize_captions(caption_file, ext="", stopwords=set(), do_stem=True):
         word_lookup[word] = idx
 
     lines = []
-    for idx, caption in captions.items():
+    for name, caption in captions:
         new_caption = list(map(str, map(word_lookup.get, caption)))
-        full_list = [str(idx)] + new_caption
+        full_list = [name] + new_caption
         lines.append(','.join(full_list))
     with open("../data/captions" + ext, "w") as f:
         f.writelines([line + '\n' for line in lines])
@@ -166,7 +174,8 @@ def get_lookup(ext=""):
     return [word[0] for word in words]
 
 def main():
-    caption_file = '../data/captions.csv'
+    # caption_file = '../data/captions.csv'
+    caption_file = '../data/flickr_captions.csv'
     # Note:
     # Vocab without stemming: 9k
     # Vocab with stemming: 6.5k
