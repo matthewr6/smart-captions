@@ -41,17 +41,11 @@ def clean_captions(captions, stopwords=set(), do_stem=True):
         captions : dict from index to caption as a string
         returns a dict with the values replaced with lists of words
     """
-<<<<<<< HEAD
-    new_captions = {}
+    new_captions = []
     if do_stem:
         stemmer = PorterStemmer()
-    for idx, caption in captions.items():
-=======
-    new_captions = []
-    stemmer = PorterStemmer()
     for idx, (name, caption) in enumerate(captions):
->>>>>>> 3e790fbd6e8690de660564469b1ad87ec12a2e67
-        # Strip ad split the caption
+        # Strip and split the caption
         new_caption = []
         for s in caption.split():
             s = s.strip('\'".,?!-;:/')
