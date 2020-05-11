@@ -20,36 +20,26 @@ with open('../data/captions_lookup.txt', 'r') as f:
 
 nonrare_words = get_nonrare_words()
 # VOCAB_SIZE = len(words) + 1
-VOCAB_SIZE = len(nonrare_words) + 1
+NUM_SIGNAL_TOKENS = 2
+VOCAB_SIZE = len(nonrare_words) + NUM_SIGNAL_TOKENS
 int_to_word = {}
 for idx, word in enumerate(words):
     int_to_word[idx] = word[:-1]
+
+MAX_SEQ_LEN = 30 
 
 def seqs_to_captions(seqs):
     captions = []
     for seq in seqs:
         caption = ''
         for word_idx in seq:
-            if int(word_idx) == 0:
-                caption += ' ' + 'STOP'
-                # break
-            else:
-                caption += ' ' + int_to_word[int(word_idx) - 1]
-        captions.append(caption)
-    return captions
-
-base = ord('a') - 1
-def letterseqs_to_captions(seqs):
-    captions = []
-    for seq in seqs:
-        caption = ''
-        for char_idx in seq:
-            if char_idx == 0:
-                # caption += '0'
+            caption += ' '
+            true_idx = int(word_idx)
+            if true_idx == 0:
+                continue
+            elif true_idx == 1:
                 break
-            if char_idx == 28:
-                caption += ' '
             else:
-                caption += chr(char_idx + base)
+                caption += int_to_word[true_idx - NUM_SIGNAL_TOKENS]
         captions.append(caption)
     return captions
