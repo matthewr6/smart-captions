@@ -1,8 +1,19 @@
 import numpy as np
 import tensorflow as tf
 
+from datetime import datetime
+
 from tensorflow import keras
 from tensorflow.keras import Model
+from tensorflow.keras.applications import (
+    VGG16,
+    VGG19,
+)
+from tensorflow.keras.optimizers import (
+    RMSprop,
+    # Adagrad,
+    # Adadelta
+)
 from tensorflow.keras.layers import (
     Input,
     Dense,
@@ -12,10 +23,27 @@ from tensorflow.keras.layers import (
     LSTM,
     Conv2D,
     LeakyReLU,
-    MaxPooling2D
+    MaxPooling2D,
+    Dropout,
+    RepeatVector,
+    GRU,
+    SimpleRNN
 )
 
-OUTPUT_SIZE = 30
+from tensorflow.keras.losses import (
+    CategoricalCrossentropy
+)
+
+from data_generator import partial_generator
+
+RecurrentLayer = GRU
+
+MAX_SEQ_LEN = 30
+# MAX_SEQ_LEN = 500
+CHAR_SEQ_LEN = 500
+NUM_CHARS = 29
+
+from constants import VOCAB_SIZE
 
 class SingleStageGeneratorV1():
 
@@ -23,37 +51,93 @@ class SingleStageGeneratorV1():
         self.inputs = None
         self.outputs = None
         self.model = None
+        self.compiled = False
         self.build()
 
     def build(self):
-        img_input = Input(shape=(250, 250, 3))
+        img_input = Input(shape=(250, 250, 3), name='gen_img_input')
         self.inputs = [img_input]
 
-        pooling_freq = 2
-        encoder = img_input
-        for idx, filters in enumerate([64, 64, 128, 128, 128, 256, 1024]):
-            encoder = Conv2D(filters, 3, activation='relu')(encoder)
-            if (idx + 1) % pooling_freq == 0:
-                encoder = MaxPooling2D(pool_size=(2, 2))(encoder)
+        pretrained_cnn = VGG16(weights='imagenet', include_top=False, input_tensor=img_input)
+        flexible_layers = 1 # arbitrary
+        for layer in pretrained_cnn.layers[:-flexible_layers]:
+            layer.trainable = False
 
-        encoder_output = Flatten()(encoder)
+        # Dense from CNN
+        img = Flatten()(pretrained_cnn.output)
+        for nodes in [1024, 512, 256, 128]:
+            img = Dense(nodes, activation='relu')(img)
+            # img = Dropout(0.25)(img)
+        img = Dense(64, activation='relu')(img)
+        # img = Dropout(0.25)(img)
 
-        # https://github.com/zhixuhao/unet/blob/master/model.py
-        # todo - look more into how this works, RNN vs LSTM vs GRU
-        # maybe just use dense layers directly for V1 as proof of concept...
-        # decoder = LSTM(50)(encoder)
-        # see section 10 of https://towardsdatascience.com/image-captioning-with-keras-teaching-computers-to-describe-pictures-c88a46a311b8
-        # i think the true output is the concat of sequence input + output (and the output we train on is the potentially the single item alone)
-        # actually, I think the optimal solution is to have the generative network output a purely dense output, and have the adversarial network
-        # take in an RNN input from this and predict 1/0 on that - see also https://towardsdatascience.com/generating-pokemon-inspired-music-from-neural-networks-bc240014132
-        # i should also do skip connections (with one hidden layer in the skip) in v2!
-        decoder = Dense(256)(encoder_output)
-        for nodes in [256, 128, 128, 64, 64]:
-            decoder = Dense(nodes)(decoder)
-            decoder = LeakyReLU(alpha=0.2)(decoder)
+        previous_words = Input(shape=(MAX_SEQ_LEN, VOCAB_SIZE), name='gen_cur_words')
+        self.inputs.append(previous_words)
 
-        decoder_output = Dense(OUTPUT_SIZE, activation='sigmoid')(decoder)
-        self.outputs = [decoder_output]
+        recurrent_layer = GRU(128)(previous_words)
+        recurrent_layer = Flatten()(recurrent_layer)
+
+        combined = Concatenate()([img, recurrent_layer])
+
+        for nodes in [256, 512, VOCAB_SIZE]:
+            combined = Dense(nodes, activation='relu')(combined)
+            # combined = Dropout(0.25)(combined)
+
+        combined = Dense(nodes, activation='softmax')(combined)
+        self.outputs = [combined]
 
         self.model = keras.Model(inputs=self.inputs, outputs=self.outputs, name='single_stage_generator_v1')
-    
+
+    def compile(self):
+        # rmsprop, adagrad, adadelta might be best options
+        optimizer = RMSprop(lr=0.01)
+        loss = CategoricalCrossentropy(from_logits=False)
+        self.model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+        self.compiled = True
+        print(self.model.summary())
+
+    def predict(self, images):
+        initial = np.zeros((images.shape[0], MAX_SEQ_LEN, VOCAB_SIZE))
+        for i in range(MAX_SEQ_LEN):
+            predictions = self.model.predict([images, initial])
+            initial[:, i, :] = predictions
+        return np.argmax(initial, axis=2)
+
+    def load(self, load_path):
+        self.model = keras.models.load_model(load_path)
+
+    def train(self, datagen, epochs, batch_size=10):
+        if not self.compiled:
+            self.compile()
+        start_time = datetime.now()
+        for epoch, (images, captions) in enumerate(datagen(batch_size=batch_size)):
+            partial_captions, next_words = partial_generator(captions)
+            loss = 0
+            accuracy = 0
+            for idx, image in enumerate(images):
+                corresponding_partials = partial_captions[idx * MAX_SEQ_LEN:(idx + 1) * MAX_SEQ_LEN]
+                corresponding_nexts = next_words[idx * MAX_SEQ_LEN:(idx + 1) * MAX_SEQ_LEN]
+                duped_images = np.stack((image,)*MAX_SEQ_LEN, axis=0)
+                # todo - better loss/acc computation probably
+                partial_loss, partial_accuracy = self.model.train_on_batch([duped_images, corresponding_partials], corresponding_nexts)
+                loss += partial_loss
+                accuracy += partial_accuracy
+            loss /= batch_size
+            accuracy /= batch_size
+            elapsed_time = datetime.now() - start_time
+            print('[Epoch {}/{}] [Loss: {}] [Acc: {}] time: {}'.format(
+                epoch,
+                epochs,
+                round(loss, 2),
+                round(100 * accuracy),
+                elapsed_time,
+            ))
+
+            if epoch >= epochs:
+                break
+
+        self.model.save('model_generator')
+
+if __name__ == '__main__':
+    model = SingleStageGeneratorV1()
+    model.compile()
