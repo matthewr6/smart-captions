@@ -19,8 +19,9 @@ with open('../data/captions_lookup.txt', 'r') as f:
     words = f.readlines()
 
 nonrare_words = get_nonrare_words()
-# VOCAB_SIZE = len(words) + 1
-NUM_SIGNAL_TOKENS = 2
+# nonrare_words = words
+
+NUM_SIGNAL_TOKENS = 3
 VOCAB_SIZE = len(nonrare_words) + NUM_SIGNAL_TOKENS
 print('Vocab size = {}'.format(VOCAB_SIZE))
 int_to_word = {}
@@ -29,8 +30,8 @@ for idx, word in enumerate(words):
 
 MAX_SEQ_LEN = 30 
 
-START_TOKEN = 0
-STOP_TOKEN = 1
+START_TOKEN = 1
+STOP_TOKEN = 2
 
 def seqs_to_captions(seqs):
     captions = []
@@ -39,9 +40,9 @@ def seqs_to_captions(seqs):
         for word_idx in seq:
             caption += ' '
             true_idx = int(word_idx)
-            if true_idx == 0:
+            if true_idx == 1 or true_idx == 0:
                 continue
-            elif true_idx == 1:
+            elif true_idx == 2:
                 break
             else:
                 caption += int_to_word[true_idx - NUM_SIGNAL_TOKENS]

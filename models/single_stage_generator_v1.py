@@ -3,6 +3,8 @@ import tensorflow as tf
 
 from datetime import datetime
 
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from tensorflow import keras
 from tensorflow.keras import Model
@@ -13,7 +15,8 @@ from tensorflow.keras.applications import (
 from tensorflow.keras.optimizers import (
     RMSprop,
     Adagrad,
-    Adadelta
+    Adadelta,
+    Adam
 )
 from tensorflow.keras.layers import (
     Input,
@@ -30,7 +33,9 @@ from tensorflow.keras.layers import (
     GRU,
     SimpleRNN,
     BatchNormalization,
-    TimeDistributed
+    TimeDistributed,
+    Embedding,
+    Add
 )
 
 from tensorflow.keras.losses import (
@@ -57,53 +62,67 @@ class SingleStageGeneratorV1():
         self.build()
 
     def build(self):
-        img_input = Input(shape=(250, 250, 3), name='gen_img_input')
-        self.inputs = [img_input]
+        img_input = Input(shape=(4096,), name='vgg16_processed_input')
+        img = Dense(128, activation='relu')(img_input)
+        img = Dense(256, activation='relu')(img_input)
+        # img = Dropout(0.3)(img)
 
-        pretrained_cnn = VGG16(weights='imagenet', include_top=True, input_tensor=img_input)
-        for layer in pretrained_cnn.layers:
-            layer.trainable = False
+        embed_dim = 256
+        previous_words = Input(shape=(MAX_SEQ_LEN, ), name='gen_cur_words')
+        recurrent_layer = Embedding(VOCAB_SIZE, embed_dim, mask_zero=True)(previous_words)
+        # recurrent_layer = Dropout(0.3)(recurrent_layer)
+        
+        # recurrent_layer = LSTM(256)(recurrent_layer)
 
-        # img = BatchNormalization()(pretrained_cnn.output)
-        img = Dense(256, activation='relu')(pretrained_cnn.output)
-        img = RepeatVector(MAX_SEQ_LEN)(img)
+        combined = Add()([recurrent_layer, img])
+        
+        combined = LSTM(256)(combined)
 
-
-        # https://github.com/chen0040/keras-image-captioning/blob/master/keras_image_captioning/library/vgg16_lstm.py
-
-        previous_words = Input(shape=(MAX_SEQ_LEN, VOCAB_SIZE), name='gen_cur_words')
-        recurrent_layer = LSTM(256, return_sequences=True)(previous_words)
-
-        combined = Concatenate()([img, recurrent_layer])
-        combined = LSTM(1024, return_sequences=False)(combined)
+        combined = Dense(256, activation='relu')(combined)
+        combined = Dense(256, activation='relu')(combined)
+        combined = BatchNormalization()(combined)
+        # combined = Dropout(0.3)(combined)
         combined = Dense(VOCAB_SIZE, activation='softmax')(combined)
 
-        self.inputs.append(previous_words)
+        self.inputs = [img_input, previous_words]
         self.outputs = [combined]
         self.model = keras.Model(inputs=self.inputs, outputs=self.outputs, name='single_stage_generator_v1')
 
     def compile(self):
         # rmsprop, adagrad, adadelta might be best options
-        optimizer = Adagrad(lr=0.001)
-        loss = CategoricalCrossentropy(from_logits=False)
-        self.model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+        # optimizer = Adagrad(lr=0.01)
+        # optimizer = RMSprop()
+        optimizer = Adam()
+        self.model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['sparse_categorical_accuracy'])
         self.compiled = True
         print(self.model.summary())
+
+    def prepare_new_sequence(self, copies=1):
+        return np.zeros((copies, MAX_SEQ_LEN))
+
+    def single_predict(self, images, sequences):
+        return self.model.predict([images, sequences])
+
+    def sample(self, a, temperature=1.0):
+        # helper function to sample an index from a probability array
+        a = np.log(a) / temperature
+        a = np.exp(a) / np.sum(np.exp(a))
+        return np.argmax(np.random.multinomial(1, a, 1)) 
 
     def predict(self, images):
         captions = []
         for image in images:
-            initial = np.zeros((MAX_SEQ_LEN, VOCAB_SIZE))
-            initial[-1, :] = 0
-            initial[-1, 0] = 1
+            initial = np.zeros((MAX_SEQ_LEN, ))
+            initial[-1] = 1
 
             for i in range(MAX_SEQ_LEN - 1, 0, -1):
                 prediction = self.model.predict([np.array([image]), np.array([initial])])[0]
                 initial = np.roll(initial, -1, axis=0)
-                initial[-1, :] = prediction
-                if np.argmax(prediction) == 1:
+                # initial[-1] = self.sample(prediction)
+                initial[-1] = np.argmax(prediction)
+                if np.argmax(prediction) == 2:
                     break
-            captions.append(np.argmax(initial, axis=1))
+            captions.append(initial)
         return captions
 
     def load(self, load_path):
@@ -113,38 +132,33 @@ class SingleStageGeneratorV1():
         if not self.compiled:
             self.compile()
         start_time = datetime.now()
-        loss_history = []
-        for epoch, (images, captions) in enumerate(datagen(batch_size=batch_size)):
-            loss = 0
-            accuracy = 0
-
-            for idx, image in enumerate(images): 
-                partial_captions, next_words = partial_generator(captions[idx])
-                duped_images = np.stack((image,) * len(partial_captions), axis=0)
-                partial_loss, partial_accuracy = self.model.train_on_batch([duped_images, partial_captions], next_words)
-                loss += partial_loss
-                accuracy += partial_accuracy
-
-            loss /= batch_size
-            accuracy /= batch_size
+        history = []
+        for epoch, (images, captions, next_words) in enumerate(datagen(batch_size=batch_size)):
+            loss, accuracy = self.model.train_on_batch([images, captions], next_words)
             elapsed_time = datetime.now() - start_time
-            loss_history.append(loss)
+            history.append((loss, accuracy))
             print('[Epoch {}/{}] [Loss: {}] [Acc%: {}] time: {}'.format(
                 epoch,
                 epochs,
-                round(loss, 2),
-                round(100 * accuracy),
+                loss,
+                100 * accuracy,
                 elapsed_time,
             ))
 
             if epoch >= epochs:
                 break
 
-        plt.plot(range(0, epochs + 1), loss_history, label='Training Loss')
+        plt.plot(range(0, epochs + 1), history[0], label='Training Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.legend()
         plt.savefig('loss_history.png')
+        plt.clf()
+        plt.plot(range(0, epochs + 1), history[1], label='Training Acc')
+        plt.xlabel('Epochs')
+        plt.ylabel('Acc')
+        plt.legend()
+        plt.savefig('acc_history.png')
 
         self.model.save('model_generator')
 
