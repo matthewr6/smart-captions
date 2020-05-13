@@ -63,7 +63,7 @@ class SingleStageGeneratorV1():
 
     def build(self):
         img_input = Input(shape=(4096,), name='vgg16_processed_input')
-        img = Dense(128, activation='relu')(img_input)
+        # img = Dense(128, activation='relu')(img_input)
         img = Dense(256, activation='relu')(img_input)
         # img = Dropout(0.3)(img)
 
@@ -78,7 +78,7 @@ class SingleStageGeneratorV1():
         
         combined = LSTM(256)(combined)
 
-        combined = Dense(256, activation='relu')(combined)
+        # combined = Dense(256, activation='relu')(combined)
         combined = Dense(256, activation='relu')(combined)
         combined = BatchNormalization()(combined)
         # combined = Dropout(0.3)(combined)
@@ -132,11 +132,13 @@ class SingleStageGeneratorV1():
         if not self.compiled:
             self.compile()
         start_time = datetime.now()
-        history = []
+        loss_history = []
+        acc_history = []
         for epoch, (images, captions, next_words) in enumerate(datagen(batch_size=batch_size)):
             loss, accuracy = self.model.train_on_batch([images, captions], next_words)
             elapsed_time = datetime.now() - start_time
-            history.append((loss, accuracy))
+            loss_history.append(loss)
+            acc_history.append(accuracy)
             print('[Epoch {}/{}] [Loss: {}] [Acc%: {}] time: {}'.format(
                 epoch,
                 epochs,
@@ -148,13 +150,13 @@ class SingleStageGeneratorV1():
             if epoch >= epochs:
                 break
 
-        plt.plot(range(0, epochs + 1), history[0], label='Training Loss')
+        plt.plot(range(0, epochs + 1), loss_history, label='Training Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.legend()
         plt.savefig('loss_history.png')
         plt.clf()
-        plt.plot(range(0, epochs + 1), history[1], label='Training Acc')
+        plt.plot(range(0, epochs + 1), acc_history, label='Training Acc')
         plt.xlabel('Epochs')
         plt.ylabel('Acc')
         plt.legend()
