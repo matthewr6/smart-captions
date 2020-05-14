@@ -71,7 +71,7 @@ def data_generator(batch_size=100, mode='vgg16'):
             if image is None:
                 continue
 
-            if image.shape[2] == 4 and mode != 'vgg16':
+            if len(image.shape) == 3 and image.shape[2] == 4 and mode != 'vgg16':
                 image = image[...,:3]
 
             for j in range(MAX_SEQ_LEN - 1, -1, -1):

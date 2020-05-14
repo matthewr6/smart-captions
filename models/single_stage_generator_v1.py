@@ -44,8 +44,6 @@ from tensorflow.keras.losses import (
 
 from tensorflow.keras.utils import to_categorical
 
-from data_generator import partial_generator
-
 RecurrentLayer = GRU
 
 # NUM_CHARS = 29
