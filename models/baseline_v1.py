@@ -10,7 +10,7 @@ from constants import seqs_to_captions
 
 
 def main(count):
-    gen = data_generator(batch_size=count)
+    gen = data_generator(batch_size=count, mode='not vgg16')
     images, captions, next_words = next(gen)
     print("Images Dimension: " + str(images.shape) + ", Captions Dimension:" + str(captions.shape) + ", Next Words Dimension: " + str(next_words.shape))
     

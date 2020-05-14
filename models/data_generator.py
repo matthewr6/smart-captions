@@ -4,8 +4,6 @@ import numpy as np
 from glob import glob
 import os
 
-from tensorflow.keras.utils import to_categorical
-
 from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words
 
 # I think I need a start of sequence token as well as end of sequence (which is currently 0)...
@@ -42,10 +40,13 @@ data = load_captions() # array of (name, encoded caption)
 
 cache = {}
 use_cache = False
-def load_image(image_path):
+def load_image(image_path, mode='vgg16'):
     if cache.get(image_path):
         return cache.get(image_path)
-    image_path = '../flickr8k_data/processed_vgg16/{}.npy'.format(image_path)
+    if mode == 'vgg16':
+        image_path = '../flickr8k_data/processed_vgg16/{}.npy'.format(image_path)
+    else:
+        image_path = '../flickr8k_data/processed/{}.npy'.format(image_path)
     if not os.path.isfile(image_path):
         return None
     image = np.load(image_path)
@@ -53,7 +54,7 @@ def load_image(image_path):
         cache[image_path] = image
     return image
 
-def data_generator(batch_size=100):
+def data_generator(batch_size=100, mode='vgg16'):
     i = len(data)
     while True:
         batch = {'images': [], 'captions': [], 'next_words': []}
@@ -65,13 +66,13 @@ def data_generator(batch_size=100):
             image_name, caption = data[i]
             i += 1
 
-            image = load_image(image_name)
+            image = load_image(image_name, mode=mode)
 
             if image is None:
                 continue
 
-            # if image.shape[2] == 4:
-            #     image = image[...,:3]
+            if image.shape[2] == 4 and mode != 'vgg16':
+                image = image[...,:3]
 
             for j in range(MAX_SEQ_LEN - 1, -1, -1):
                 if caption[j] == 1: # if we've encountered the start token, don't bother adding further examples
@@ -89,21 +90,6 @@ def data_generator(batch_size=100):
         batch['next_words'] = np.array(batch['next_words'])
 
         yield [batch['images'], batch['captions'], batch['next_words']]
-
-def partial_generator(caption):
-    batch = {'next_words': [], 'captions': []}
-    for i in range(MAX_SEQ_LEN - 1, -1, -1):
-        if caption[i] == 1: # if we've encountered the start token, don't bother adding further examples
-            break
-
-        partial = caption[:i]
-        padded_partial = np.pad(partial, (MAX_SEQ_LEN - partial.shape[0], 0))
-        batch['captions'].append(to_categorical(padded_partial, num_classes=VOCAB_SIZE))
-        batch['next_words'].append(to_categorical(caption[i], num_classes=VOCAB_SIZE))
-
-    batch['captions'] = np.array(batch['captions'])
-    batch['next_words'] = np.array(batch['next_words'])
-    return batch['captions'], batch['next_words']
 
 if __name__ == '__main__':
     gen = data_generator(batch_size=13)
