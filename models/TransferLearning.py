@@ -1,9 +1,26 @@
 import tensorflow as tf
-import sys
+import sys, os
 sys.path.append('../preprocessing')
 from reduce_captions import get_captions, get_lookup
+
+import random
 from sklearn.model_selection import train_test_split
 import numpy as np
+
+cache = {}
+use_cache = False
+def load_image(image_path):
+    if cache.get(image_path):
+        return cache.get(image_path)
+    image_path = '../data/processed/{}.npy'.format(image_path)
+    print(image_path)
+    if not os.path.isfile(image_path):
+        return None
+    print('load')
+    image = np.load(image_path)
+    if use_cache:
+        cache[image_path] = image
+    return image
 
 def get_data(labels):
     X = []
@@ -21,7 +38,7 @@ def get_data(labels):
     y = np.array(y)
     return (X, y)
 
-def get_labels():
+def load_transfer_data():
     nouns = []
     with open('../data/caption_nouns.txt', 'r') as f:
         for line in f:
@@ -37,7 +54,38 @@ def get_labels():
             if word in nouns:
                 label[nouns.index(word)] = 1
         labels[i] = label
-    return labels
+    data = []
+    for i, caption in labels.items():
+        data.append((i, caption))
+    return np.array(data)
+
+def transfer_generator(batch_size=100):
+    data = load_transfer_data()
+    i = len(data)
+    while True:
+        batch = {'images': [], 'captions': []}
+        for b in range(batch_size):
+            if i == len(data):
+                i = 0
+                random.shuffle(data)
+
+            image_name, caption = data[i]
+            i += 1
+
+            image = load_image(str(image_name))
+
+            if image is None:
+                continue
+
+            batch['images'].append(image)
+            batch['captions'].append(caption)
+
+            
+        batch['images'] = np.array(batch['images'])
+        batch['captions'] = np.array(batch['captions'])
+
+        yield [batch['images'], batch['captions']]
+
 
 def test_model(verbose=False):
     model = Sequential()
@@ -63,10 +111,14 @@ def test_model(verbose=False):
         model.summary()
 
 def main():
-    labels = get_labels()
-    X, y = get_data(labels)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=27, test_size=0.1)
-    test_model(verbose=True)
+    # print('started')
+    # gen = transfer_generator(batch_size=13)
+    # images, captions = next(gen)
+    # print(images.shape, captions)
+    # labels = get_labels()
+    # X, y = get_data(labels)
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=27, test_size=0.1)
+    # test_model(verbose=True)
 
 
 
