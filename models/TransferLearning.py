@@ -6,10 +6,10 @@ from matplotlib import pyplot as plt
 
 
 from tensorflow.keras.utils import Sequence
-from tensorflow.keras.applications import {
+from tensorflow.keras.applications import (
     VGG16,
     VGG19
-}
+)
 
 from tensorflow.keras import Sequential
 
@@ -94,18 +94,21 @@ def transfer_generator(batch_size=100):
 
             image = load_image(str(image_name))
             if image.shape != (250, 250, 3):
-                raise ValueError(image_name)
+                print('\n', image_name, 'gives shape', image.shape)
+                continue
             if image is None:
                 continue
 
             batch['images'].append(image)
             batch['captions'].append(caption)
 
-        if len(batch['images']) != batch_size:
-            print('BAD')
         batch['images'] = np.array(batch['images'])
         batch['captions'] = np.array(batch['captions'])
         yield (batch['images'], batch['captions'])
+
+def get_vgg_pretrained_model():
+    base_model = VGG16(input_shape=(250,250,3), include_top=False)
+
 
 
 def get_basic_model(verbose=False):
@@ -169,10 +172,10 @@ def main():
     # X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=27, test_size=0.1)
     batch = next(transfer_generator())
     print(decode_binarized_caption(batch[1][0]))
-    model = get_model(verbose=False)
+    model = get_basic_model(verbose=False)
     opt = Adam()
     model.compile(loss="binary_crossentropy", optimizer=opt)
-    H = model.fit(transfer_generator(), epochs=5, steps_per_epoch=10)
+    H = model.fit(transfer_generator(), epochs=15, steps_per_epoch=10)
     pred = np.round(model.predict(batch[0]))
     print(pred)
     print(batch[1])
