@@ -10,8 +10,8 @@ from tensorflow.keras.layers import Input
 vgg16 = VGG16(input_tensor=Input(shape=(250, 250, 3)))
 vgg16_mod = Model(inputs=vgg16.inputs, outputs=vgg16.layers[-2].output)
 
-for path in glob.glob('../flickr8k_data/processed/*.npy'):
+for path in glob.glob('../tmp/processed/*.npy'):
     image = np.load(path)
     basename = os.path.basename(path)
     result = vgg16_mod.predict(np.array([image]))[0]
-    np.save('../flickr8k_data/processed_vgg16/{}'.format(basename), result)
+    np.save('../tmp/processed_vgg16/{}'.format(basename), result)

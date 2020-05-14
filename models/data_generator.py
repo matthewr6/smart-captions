@@ -44,9 +44,9 @@ def load_image(image_path, mode='vgg16'):
     if cache.get(image_path):
         return cache.get(image_path)
     if mode == 'vgg16':
-        image_path = '../flickr8k_data/processed_vgg16/{}.npy'.format(image_path)
+        image_path = '../data/processed_vgg16/{}.npy'.format(image_path)
     else:
-        image_path = '../flickr8k_data/processed/{}.npy'.format(image_path)
+        image_path = '../data/processed/{}.npy'.format(image_path)
     if not os.path.isfile(image_path):
         return None
     image = np.load(image_path)

@@ -4,4 +4,7 @@ sources/*
 *.tar.gz
 *.pyc
 copy-models
+copy-graphs
+models/*.png
 __pycache__/
+ignored_data/
