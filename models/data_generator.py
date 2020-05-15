@@ -4,7 +4,7 @@ import numpy as np
 from glob import glob
 import os
 
-from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words
+from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words, MAX_SEQ_LEN
 
 # I think I need a start of sequence token as well as end of sequence (which is currently 0)...
 # Also, let's separate end and null tokens; after offset of 2:
@@ -13,12 +13,10 @@ from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words
 # null = 0
 # word tokens start at 3
 
-# Note: longest caption is 25.  So, let's pad to 30.
-MAX_SEQ_LEN = 30
 OFFSET = 3
 # todo : my data is backwards! null tokens need to be at start
 def load_captions():
-    with open('../data/captions.txt') as f:
+    with open('../data/captions_withstop.txt') as f:
         data = f.readlines()
     loaded = []
     for example in data:

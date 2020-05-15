@@ -7,8 +7,12 @@ from single_stage_generator_v1 import SingleStageGeneratorV1
 
 # model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
 model = SingleStageGeneratorV1()
-model.train(data_generator, epochs=2500, batch_size=100)
-# model.compile()
+
+# a batch size of 250 makes training converge faster but each epoch is slower.
+# but, batch size does not affect underlying function space.
+
+# steep loss decraese stops around 750 epochs, but let's try 5000 sometime once we like this
+model.train(data_generator, epochs=750, batch_size=100)
 
 gen = data_generator(batch_size=5)
 images, captions, next_words = next(gen)

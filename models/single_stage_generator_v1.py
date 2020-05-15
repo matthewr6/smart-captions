@@ -44,10 +44,6 @@ from tensorflow.keras.losses import (
 
 from tensorflow.keras.utils import to_categorical
 
-RecurrentLayer = GRU
-
-# NUM_CHARS = 29
-
 from constants import VOCAB_SIZE, MAX_SEQ_LEN
 
 class SingleStageGeneratorV1():
@@ -76,7 +72,7 @@ class SingleStageGeneratorV1():
         
         combined = LSTM(256)(combined)
 
-        # combined = Dense(256, activation='relu')(combined)
+        # combined = Dense(128, activation='relu')(combined)
         combined = Dense(256, activation='relu')(combined)
         combined = BatchNormalization()(combined)
         # combined = Dropout(0.3)(combined)

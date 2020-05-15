@@ -15,7 +15,7 @@ def get_nonrare_words():
     return true_counter.keys()
 
 words = []
-with open('../data/captions_lookup.txt', 'r') as f:
+with open('../data/captions_lookup_withstop.txt', 'r') as f:
     words = f.readlines()
 
 nonrare_words = get_nonrare_words()
@@ -28,7 +28,7 @@ int_to_word = {}
 for idx, word in enumerate(words):
     int_to_word[idx] = word[:-1]
 
-MAX_SEQ_LEN = 30 
+MAX_SEQ_LEN = 35
 
 START_TOKEN = 1
 STOP_TOKEN = 2
