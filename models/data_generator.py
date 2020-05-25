@@ -56,6 +56,7 @@ def load_image(image_path, mode='vgg16'):
 def get_split_generators(data, batch_size=100, mode='vgg16', split=(70, 20, 10)):
     random.shuffle(data)
     N = len(data)
+    # get the cumulative percentages of the sutoffs for train and val
     train_p, val_p = split[0], split[0] + split[1]
     train, val, test = np.split(data, [N * train_p // 100, N * val_p // 100])
 
@@ -112,6 +113,8 @@ if __name__ == '__main__':
     # gen = data_generator(batch_size=13)
     # images, captions, next_words = next(gen)
     # print(images.shape, captions.shape, next_words.shape)
+
+    # Usage example!
     data = load_captions()
     gen_dict = get_split_generators(data, batch_size=5)
     train = gen_dict['train']
