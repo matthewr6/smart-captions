@@ -24,15 +24,15 @@ from tensorflow.keras.layers import (
     LeakyReLU,
     MaxPooling2D,
     Dropout,
-    GaussianNoise
+    GaussianNoise,
+    Embedding,
+    Add,
+    Lambda,
 )
 
-from constants import VOCAB_SIZE
+from tensorflow.keras import backend, utils
 
-INPUT_SIZE = 30
-# INPUT_SIZE = 500
-CHAR_SEQ_LEN = 500
-NUM_CHARS = 29
+from constants import VOCAB_SIZE, MAX_SEQ_LEN
 
 # Call model = AdversarialModel(GeneratorModelName(), generator)
 class AdversarialModelV1():
@@ -52,62 +52,49 @@ class AdversarialModelV1():
         pooling_freq = 2
 
         # Image CNN
-        img_input = Input(shape=(250, 250, 3), name='discrim_img_input')
-        pretrained_cnn = VGG16(weights='imagenet', include_top=False, input_tensor=img_input)
-        flexible_layers = 1 # arbitrary
-        for layer in pretrained_cnn.layers[:-flexible_layers]:
-            layer.trainable = False
+        img_input = Input(shape=(4096,), name='discrim_img_input')
 
         # Dense from CNN
-        img = Flatten()(pretrained_cnn.output)
-        img = Dense(1024, activation='relu')(img)
-        img = Dropout(0.25)(img)
-        img = Dense(256, activation='relu')(img)
+        img = Dense(256, activation='relu')(img_input)
         img = Dropout(0.25)(img)
 
         # Caption sequence
-        caption_input = Input(shape=(INPUT_SIZE, VOCAB_SIZE), name='discrim_caption_input')
-        latent_dim = 12 # arbitrary, inline in generative
-        caption, _, _ = LSTM(latent_dim, return_sequences=True, return_state=True)(caption_input)
-        caption = Dense(24)(caption)
-        caption = Dense(12)(caption)
-        caption = Flatten()(caption)
+        embed_dim = 256
+        previous_words_input = Input(shape=(MAX_SEQ_LEN, ), name='discrim_caption_input')
 
-        # Caption dense
-        for nodes in [256, 64]:
-            caption = Dense(nodes, activation='relu')(caption)
-            caption = Dropout(0.25)(caption)
+        next_word_input = Input(shape=(VOCAB_SIZE, ), name='gen_prediction_input')
+        next_word = Lambda(lambda x: backend.cast(backend.argmax(x, axis=1), 'float32'))(next_word_input)
+        next_word = Reshape((1, ))(next_word)
 
-        # Combined dense
-        combined = Concatenate(axis=-1)([img, caption])
-        for nodes in [32, 32]: # arbitrary
-            combined = Dense(nodes, activation='relu')(combined)
-            combined = Dropout(0.25)(combined)
+        current_caption = Concatenate()([previous_words_input, next_word])
+        recurrent_layer = Embedding(VOCAB_SIZE, embed_dim, mask_zero=True)(current_caption)
 
-        combined = Dense(1, activation='sigmoid', name='discrim_output')(combined)
+        combined = Add()([recurrent_layer, img])
 
-        self.discriminator = keras.Model(inputs=[img_input, caption_input], outputs=[combined], name='adversarial_caption_v1')
-        self.discriminator_caption_input = caption_input
-        # self.discriminator.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        self.discriminator.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+        combined = LSTM(256)(combined)
+
+        combined = Dense(128, activation='relu')(combined)
+        img = Dropout(0.25)(img)
+
+        combined = Dense(1, activation='sigmoid')(combined)
+
+        self.discriminator = keras.Model(inputs=[img_input, previous_words_input, next_word_input], outputs=[combined], name='adversarial_output')
+
+        self.discriminator.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     def connect_generator(self):
         # Ignore the warning; we want to make the discriminator trainable but only alone.
-        self.discriminator.trainable = False
-        adversarial_output = self.discriminator(self.generator.inputs + self.generator.outputs)
 
-        # potentially train full model with generator output also, but that might not be necessary.
-        # self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + [adversarial_output], name='combined')
-        self.full_model = keras.Model(inputs=self.generator.inputs, outputs=adversarial_output, name='combined')
-        optimizer = Adam(lr=0.00001)
-        self.full_model.compile(
-            optimizer=optimizer,
-            loss={
-                'adversarial_caption_v1': 'binary_crossentropy',
-                # 'gen_output': 'categorical_crossentropy', # unsure if this is good, or whether to use it
-            },
-            metrics=['accuracy']
-        )
+        img = Input(shape=(4096, ))
+        partial_caption = Input(shape=(MAX_SEQ_LEN, ))
+
+        generated_next_word = self.generator.model([img, partial_caption])
+
+        self.discriminator.trainable = False
+        valid = self.discriminator([img, partial_caption, generated_next_word])
+
+        self.full_model = keras.Model(inputs=[img, partial_caption], outputs=[valid], name='combined')
+        self.full_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     def show_model_structures(self):
         if self.discriminator:
@@ -120,23 +107,38 @@ class AdversarialModelV1():
         print(self.full_model.summary())
 
 
-    def train(self, datagen, epochs, batch_size=50):
-        real = np.ones((batch_size,))
-        fake = np.zeros((batch_size,))
+    def train(self, generators, iters, batch_size=50):
         start_time = datetime.now()
-        for epoch, (images, real_captions) in enumerate(datagen(batch_size=batch_size)):
-            fake_captions = self.generator.model.predict(images)
-            real_loss = self.discriminator.train_on_batch([images, real_captions], real)
-            fake_loss = self.discriminator.train_on_batch([images, fake_captions], fake)
+
+        history = {
+            'train_loss': [],
+            'train_acc': [],
+            'val_loss': [],
+            'val_acc': [],
+        }
+
+        train_generator = generators['train']()
+        val_generator = generators['val']()
+        for iteration in range(iters):
+            images, captions, next_words = next(train_generator)
+            next_words = utils.to_categorical(next_words, num_classes=VOCAB_SIZE)
+            val_images, val_captions, val_next_words = next(val_generator)
+
+            num_examples = len(images)
+            real = np.ones((num_examples,))
+            fake = np.zeros((num_examples,))
+
+            fake_next_words = self.generator.model.predict([images, captions])
+            real_loss = self.discriminator.train_on_batch([images, captions, next_words], real)
+            fake_loss = self.discriminator.train_on_batch([images, captions, fake_next_words], fake)
             discriminator_stats = np.mean([real_loss, fake_loss], axis=0)
 
-            generator_stats = self.full_model.train_on_batch(images, real)
-            # generator_stats = self.full_model.train_on_batch(images, [real_captions, real])
+            generator_stats = self.full_model.train_on_batch([images, captions], real)
 
             elapsed_time = datetime.now() - start_time
-            print('[Epoch {}/{}] [D loss: {}, acc: {},{},mean{}] [Full loss: {}] [% realistic generated: {}] time: {}'.format(
-                epoch,
-                epochs,
+            print('[Iter {}/{}] [D loss: {}, acc: {},{},mean{}] [Full loss: {}] [% realistic generated: {}] time: {}'.format(
+                iteration,
+                iters,
                 round(discriminator_stats[0], 2),
                 round(100 * real_loss[1], 2),
                 round(100 * fake_loss[1], 2),
@@ -146,9 +148,6 @@ class AdversarialModelV1():
                 round(100 * generator_stats[1], 2),
                 elapsed_time
             ))
-
-            if epoch >= epochs:
-                break
 
         self.full_model.save('model_{}'.format(self.name))
 

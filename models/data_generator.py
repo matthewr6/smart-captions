@@ -4,7 +4,7 @@ import numpy as np
 from glob import glob
 import os
 
-from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words, MAX_SEQ_LEN
+from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words, MAX_SEQ_LEN, NUM_SIGNAL_TOKENS
 
 # I think I need a start of sequence token as well as end of sequence (which is currently 0)...
 # Also, let's separate end and null tokens; after offset of 2:
@@ -13,8 +13,6 @@ from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words, MAX_SEQ_LEN
 # null = 0
 # word tokens start at 3
 
-TEMP_MAX_SEQ_LEN = 50
-OFFSET = 3
 def load_captions():
     with open('../data/captions_withstop.txt') as f:
         data = f.readlines()
@@ -25,12 +23,12 @@ def load_captions():
         word_vector = [1]
         for w_idx in example[1:]: # get the list of words in the example
             if w_idx in nonrare_words:
-                word_vector.append(int(w_idx) + OFFSET)
+                word_vector.append(int(w_idx) + NUM_SIGNAL_TOKENS)
         word_vector.append(2)
         # create an example for every partial caption (any subsequence of the caption)
         loaded.append((
             img_name,
-            np.pad(word_vector, ((TEMP_MAX_SEQ_LEN - len(word_vector), 0)))
+            np.pad(word_vector, ((MAX_SEQ_LEN - len(word_vector), 0)))
         ))
     return loaded
 
@@ -53,12 +51,12 @@ def load_image(image_path, mode='vgg16'):
         cache[image_path] = image
     return image
 
-def get_split_generators(data, batch_size=100, mode='vgg16', split=(70, 20, 10)):
-    random.shuffle(data)
-    N = len(data)
+def get_split_generators(all_data, batch_size=100, mode='vgg16', split=(70, 20, 10)):
+    random.shuffle(all_data)
+    N = len(all_data)
     # get the cumulative percentages of the sutoffs for train and val
     train_p, val_p = split[0], split[0] + split[1]
-    train, val, test = np.split(data, [N * train_p // 100, N * val_p // 100])
+    train, val, test = np.split(all_data, [N * train_p // 100, N * val_p // 100])
 
     generator_dict = {}
     generator_dict['train'] = define_data_generator(train, batch_size, mode)
@@ -84,7 +82,7 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
                 image = load_image(image_name, mode=mode)
 
                 if image is None:
-                    print('junk image')
+                    # print('junk image')
                     continue
 
                 if len(image.shape) == 3 and image.shape[2] == 4 and mode != 'vgg16':
