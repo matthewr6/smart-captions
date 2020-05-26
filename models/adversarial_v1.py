@@ -47,49 +47,35 @@ class AdversarialModelV1():
         self.connect_generator()
         self.show_model_structures()
 
-    # so many arbitrary design choices here rn.  very easy to modify.
     def build_discriminator(self):
-        pooling_freq = 2
-
-        # Image CNN
-        img_input = Input(shape=(4096,), name='discrim_img_input')
-
-        # Dense from CNN
-        img = Dense(256, activation='relu')(img_input)
-        img = Dropout(0.25)(img)
-
-        # Caption sequence
-        embed_dim = 256
-        previous_words_input = Input(shape=(MAX_SEQ_LEN, ), name='discrim_caption_input')
-
+        previous_words_input = Input(shape=(MAX_SEQ_LEN, ), name='discrim_caption_input')        
         next_word_input = Input(shape=(VOCAB_SIZE, ), name='gen_prediction_input')
-        next_word = Lambda(lambda x: backend.cast(backend.argmax(x, axis=1), 'float32'))(next_word_input)
-        next_word = Reshape((1, ))(next_word)
+        next_word = Dense(1, activation='relu')(next_word_input)
 
         current_caption = Concatenate()([previous_words_input, next_word])
-        recurrent_layer = Embedding(VOCAB_SIZE, embed_dim, mask_zero=True)(current_caption)
+        recurrent_layer = Embedding(VOCAB_SIZE, 256, mask_zero=True)(current_caption)
+        
+        img_input = Input(shape=(4096,), name='discrim_img_input')
+        img = Dense(256, activation='relu')(img_input)
+        img = Dropout(0.25)(img)
 
         combined = Add()([recurrent_layer, img])
 
         combined = LSTM(256)(combined)
 
-        combined = Dense(128, activation='relu')(combined)
-        img = Dropout(0.25)(img)
+        combined = Dense(128, activation='relu')(current_caption)
+        final = Dense(1, activation='sigmoid')(combined)
 
-        combined = Dense(1, activation='sigmoid')(combined)
-
-        self.discriminator = keras.Model(inputs=[img_input, previous_words_input, next_word_input], outputs=[combined], name='adversarial_output')
-
+        self.discriminator = keras.Model(inputs=[img_input, previous_words_input, next_word_input], outputs=[final], name='adversarial_output')
         self.discriminator.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     def connect_generator(self):
-        # Ignore the warning; we want to make the discriminator trainable but only alone.
-
         img = Input(shape=(4096, ))
         partial_caption = Input(shape=(MAX_SEQ_LEN, ))
 
         generated_next_word = self.generator.model([img, partial_caption])
 
+        # Ignore the warning; we want to make the discriminator trainable but only alone.
         self.discriminator.trainable = False
         valid = self.discriminator([img, partial_caption, generated_next_word])
 
@@ -99,12 +85,12 @@ class AdversarialModelV1():
     def show_model_structures(self):
         if self.discriminator:
             keras.utils.plot_model(self.discriminator, 'discriminator_{}.png'.format(self.name))
-            print(self.discriminator.summary())
+            # print(self.discriminator.summary())
         if self.generator:
             keras.utils.plot_model(self.generator.model, 'generator_{}.png'.format(self.name))
-            print(self.generator.model.summary())
+            # print(self.generator.model.summary())
         keras.utils.plot_model(self.full_model, 'full_{}.png'.format(self.name))
-        print(self.full_model.summary())
+        # print(self.full_model.summary())
 
 
     def train(self, generators, iters, batch_size=50):
@@ -136,16 +122,15 @@ class AdversarialModelV1():
             generator_stats = self.full_model.train_on_batch([images, captions], real)
 
             elapsed_time = datetime.now() - start_time
-            print('[Iter {}/{}] [D loss: {}, acc: {},{},mean{}] [Full loss: {}] [% realistic generated: {}] time: {}'.format(
+            print('[Iter {}/{}]\n\t[D loss: {}, acc: {}, {}, mean {}]\n\t[Full loss: {}]\n\t[Realistic generated%: {}]\n\t[Time: {}]'.format(
                 iteration,
                 iters,
-                round(discriminator_stats[0], 2),
-                round(100 * real_loss[1], 2),
-                round(100 * fake_loss[1], 2),
-                round(100 * discriminator_stats[1], 2),
-                # round(100 * generator_stats[4], 2),
-                round(generator_stats[0], 2),
-                round(100 * generator_stats[1], 2),
+                discriminator_stats[0],
+                100 * real_loss[1],
+                100 * fake_loss[1],
+                100 * discriminator_stats[1],
+                generator_stats[0],
+                100 * generator_stats[1],
                 elapsed_time
             ))
 

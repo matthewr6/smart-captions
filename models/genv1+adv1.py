@@ -9,7 +9,7 @@ split_generators = get_split_generators(load_captions())
 model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
 
 # 1000 iters is a hard max on the generator only so far
-model.train(split_generators, iters=1, batch_size=100)
+model.train(split_generators, iters=5, batch_size=100)
 
 # a batch size of 250 makes training converge faster but each epoch is slower.
 # but, batch size does not affect underlying function space.
