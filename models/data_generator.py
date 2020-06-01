@@ -82,10 +82,6 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
                 image = load_image(image_name, mode=mode)
 
                 if image is None:
-<<<<<<< HEAD
-=======
-                    # print('junk image')
->>>>>>> 6670c5270cb03f0be504e596aac288459750a75f
                     continue
 
                 if len(image.shape) == 3 and image.shape[2] == 4 and mode != 'vgg16':

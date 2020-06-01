@@ -14,9 +14,7 @@ model.train(split_generators, iters=400, batch_size=100)
 # a batch size of 250 makes training converge faster but each epoch is slower.
 # but, batch size does not affect underlying function space.
 
-generators = split_generators()
-
-generator = generators['train']()
+generator = split_generators['train']()
 # generator = generators['val']()
 
 gen = generator(batch_size=5)
