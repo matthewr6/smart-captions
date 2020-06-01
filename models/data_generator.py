@@ -13,6 +13,7 @@ from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words, MAX_SEQ_LEN
 # null = 0
 # word tokens start at 3
 
+# the flickr data has a larger SEQ LEN, so we temporarily define a larger MAX_SEQ_LEN here
 TEMP_MAX_SEQ_LEN = 50
 OFFSET = 3
 def load_captions():
@@ -84,7 +85,6 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
                 image = load_image(image_name, mode=mode)
 
                 if image is None:
-                    print('junk image')
                     continue
 
                 if len(image.shape) == 3 and image.shape[2] == 4 and mode != 'vgg16':
@@ -106,7 +106,7 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
             batch['next_words'] = np.array(batch['next_words'])
 
             yield [batch['images'], batch['captions'], batch['next_words']]
-    return data_gen
+    return data_gen 
 
 if __name__ == '__main__':
 
