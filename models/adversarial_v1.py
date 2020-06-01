@@ -2,6 +2,9 @@ import numpy as np
 import tensorflow as tf
 from datetime import datetime
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import (
@@ -24,15 +27,15 @@ from tensorflow.keras.layers import (
     LeakyReLU,
     MaxPooling2D,
     Dropout,
-    GaussianNoise
+    GaussianNoise,
+    Embedding,
+    Add,
+    Lambda,
 )
 
-from constants import VOCAB_SIZE
+from tensorflow.keras import backend, utils
 
-INPUT_SIZE = 30
-# INPUT_SIZE = 500
-CHAR_SEQ_LEN = 500
-NUM_CHARS = 29
+from constants import VOCAB_SIZE, MAX_SEQ_LEN
 
 # Call model = AdversarialModel(GeneratorModelName(), generator)
 class AdversarialModelV1():
@@ -47,110 +50,124 @@ class AdversarialModelV1():
         self.connect_generator()
         self.show_model_structures()
 
-    # so many arbitrary design choices here rn.  very easy to modify.
     def build_discriminator(self):
-        pooling_freq = 2
+        previous_words_input = Input(shape=(MAX_SEQ_LEN, ), name='discrim_caption_input')        
+        next_word_input = Input(shape=(VOCAB_SIZE, ), name='gen_prediction_input')
+        next_word = Dense(1, activation='relu')(next_word_input)
 
-        # Image CNN
-        img_input = Input(shape=(250, 250, 3), name='discrim_img_input')
-        pretrained_cnn = VGG16(weights='imagenet', include_top=False, input_tensor=img_input)
-        flexible_layers = 1 # arbitrary
-        for layer in pretrained_cnn.layers[:-flexible_layers]:
-            layer.trainable = False
-
-        # Dense from CNN
-        img = Flatten()(pretrained_cnn.output)
-        img = Dense(1024, activation='relu')(img)
-        img = Dropout(0.25)(img)
-        img = Dense(256, activation='relu')(img)
+        current_caption = Concatenate()([previous_words_input, next_word])
+        recurrent_layer = Embedding(VOCAB_SIZE, 256, mask_zero=True)(current_caption)
+        
+        img_input = Input(shape=(4096,), name='discrim_img_input')
+        img = Dense(256, activation='relu')(img_input)
         img = Dropout(0.25)(img)
 
-        # Caption sequence
-        caption_input = Input(shape=(INPUT_SIZE, VOCAB_SIZE), name='discrim_caption_input')
-        latent_dim = 12 # arbitrary, inline in generative
-        caption, _, _ = LSTM(latent_dim, return_sequences=True, return_state=True)(caption_input)
-        caption = Dense(24)(caption)
-        caption = Dense(12)(caption)
-        caption = Flatten()(caption)
+        combined = Add()([recurrent_layer, img])
 
-        # Caption dense
-        for nodes in [256, 64]:
-            caption = Dense(nodes, activation='relu')(caption)
-            caption = Dropout(0.25)(caption)
+        combined = LSTM(256)(combined)
 
-        # Combined dense
-        combined = Concatenate(axis=-1)([img, caption])
-        for nodes in [32, 32]: # arbitrary
-            combined = Dense(nodes, activation='relu')(combined)
-            combined = Dropout(0.25)(combined)
+        combined = Dense(128, activation='relu')(current_caption)
+        final = Dense(1, activation='sigmoid')(combined)
 
-        combined = Dense(1, activation='sigmoid', name='discrim_output')(combined)
-
-        self.discriminator = keras.Model(inputs=[img_input, caption_input], outputs=[combined], name='adversarial_caption_v1')
-        self.discriminator_caption_input = caption_input
-        # self.discriminator.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        self.discriminator.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+        self.discriminator = keras.Model(inputs=[img_input, previous_words_input, next_word_input], outputs=[final], name='adversarial_output')
+        self.discriminator.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     def connect_generator(self):
+        img = Input(shape=(4096, ))
+        partial_caption = Input(shape=(MAX_SEQ_LEN, ))
+
+        generated_next_word = self.generator.model([img, partial_caption])
+
         # Ignore the warning; we want to make the discriminator trainable but only alone.
         self.discriminator.trainable = False
-        adversarial_output = self.discriminator(self.generator.inputs + self.generator.outputs)
+        valid = self.discriminator([img, partial_caption, generated_next_word])
 
-        # potentially train full model with generator output also, but that might not be necessary.
-        # self.full_model = keras.Model(inputs=self.generator.inputs, outputs=self.generator.outputs + [adversarial_output], name='combined')
-        self.full_model = keras.Model(inputs=self.generator.inputs, outputs=adversarial_output, name='combined')
-        optimizer = Adam(lr=0.00001)
-        self.full_model.compile(
-            optimizer=optimizer,
-            loss={
-                'adversarial_caption_v1': 'binary_crossentropy',
-                # 'gen_output': 'categorical_crossentropy', # unsure if this is good, or whether to use it
-            },
-            metrics=['accuracy']
-        )
+        self.full_model = keras.Model(inputs=[img, partial_caption], outputs=[valid], name='combined')
+        self.full_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     def show_model_structures(self):
         if self.discriminator:
             keras.utils.plot_model(self.discriminator, 'discriminator_{}.png'.format(self.name))
-            print(self.discriminator.summary())
+            # print(self.discriminator.summary())
         if self.generator:
             keras.utils.plot_model(self.generator.model, 'generator_{}.png'.format(self.name))
-            print(self.generator.model.summary())
+            # print(self.generator.model.summary())
         keras.utils.plot_model(self.full_model, 'full_{}.png'.format(self.name))
-        print(self.full_model.summary())
+        # print(self.full_model.summary())
 
 
-    def train(self, datagen, epochs, batch_size=50):
-        real = np.ones((batch_size,))
-        fake = np.zeros((batch_size,))
+    def train(self, generators, iters, batch_size=50):
         start_time = datetime.now()
-        for epoch, (images, real_captions) in enumerate(datagen(batch_size=batch_size)):
-            fake_captions = self.generator.model.predict(images)
-            real_loss = self.discriminator.train_on_batch([images, real_captions], real)
-            fake_loss = self.discriminator.train_on_batch([images, fake_captions], fake)
-            discriminator_stats = np.mean([real_loss, fake_loss], axis=0)
 
-            generator_stats = self.full_model.train_on_batch(images, real)
-            # generator_stats = self.full_model.train_on_batch(images, [real_captions, real])
+        history = {
+            'd_real_acc': [],
+            'd_fake_acc': [],
+            'realistic_generated': [],
+
+            'd_val_real_acc': [],
+            'd_val_fake_acc': [],
+            'val_realistic_generated': [],
+        }
+
+        train_generator = generators['train']()
+        val_generator = generators['val']()
+        for iteration in range(iters):
+            images, captions, next_words = next(train_generator)
+            next_words = utils.to_categorical(next_words, num_classes=VOCAB_SIZE)
+            val_images, val_captions, val_next_words = next(val_generator)
+            val_next_words = utils.to_categorical(val_next_words, num_classes=VOCAB_SIZE)
+
+            num_examples = len(images)
+            num_val_examples = len(val_images)
+            real = np.ones((num_examples,))
+            fake = np.zeros((num_examples,))
+            val_real = np.ones((num_val_examples,))
+            val_fake = np.zeros((num_val_examples,))
+
+            fake_next_words = self.generator.model.predict([images, captions])
+            _, real_acc = self.discriminator.train_on_batch([images, captions, next_words], real)
+            _, fake_acc = self.discriminator.train_on_batch([images, captions, fake_next_words], fake)
+            _, generated_acc = self.full_model.train_on_batch([images, captions], real)
+
+            val_fake_next_words = self.generator.model.predict([val_images, val_captions])
+            _, real_val_acc = self.discriminator.test_on_batch([val_images, val_captions, val_next_words], val_real)
+            _, fake_val_acc = self.discriminator.test_on_batch([val_images, val_captions, val_fake_next_words], val_fake)
+            _, val_generated_acc = self.full_model.test_on_batch([val_images, val_captions], val_real)
 
             elapsed_time = datetime.now() - start_time
-            print('[Epoch {}/{}] [D loss: {}, acc: {},{},mean{}] [Full loss: {}] [% realistic generated: {}] time: {}'.format(
-                epoch,
-                epochs,
-                round(discriminator_stats[0], 2),
-                round(100 * real_loss[1], 2),
-                round(100 * fake_loss[1], 2),
-                round(100 * discriminator_stats[1], 2),
-                # round(100 * generator_stats[4], 2),
-                round(generator_stats[0], 2),
-                round(100 * generator_stats[1], 2),
+            print('[Iter {}/{}]\n\t[D acc (real/fake): {}, {}]\n\t[Realistic generated: {}]\n\t[Val D acc (real/fake): {}, {}]\n\t[Val realistic: {}]\n\t[Time: {}]'.format(
+                iteration,
+                iters,
+                real_acc,
+                fake_acc,
+                generated_acc,
+                real_val_acc,
+                fake_val_acc,
+                val_generated_acc,
                 elapsed_time
             ))
 
-            if epoch >= epochs:
-                break
+            history['d_real_acc'].append(real_acc)
+            history['d_fake_acc'].append(fake_acc)
+            history['realistic_generated'].append(generated_acc)
+
+            history['d_val_real_acc'].append(real_val_acc)
+            history['d_val_fake_acc'].append(fake_val_acc)
+            history['val_realistic_generated'].append(val_generated_acc)
+
+        for name, values in history.items():
+            print(name)
+            plt.plot(range(0, iters), values, label=name)
+            plt.xlabel('Iteration')
+            plt.ylabel(name)
+            plt.legend()
+            plt.savefig('{}_history.png'.format(name))
+            plt.clf()
 
         self.full_model.save('model_{}'.format(self.name))
 
     def predict(self, images):
         return self.generator.predict(images)
+
+    def single_predict(self, images, captions):
+        return self.generator.single_predict(images, captions)

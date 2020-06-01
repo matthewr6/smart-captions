@@ -28,7 +28,8 @@ int_to_word = {}
 for idx, word in enumerate(words):
     int_to_word[idx] = word[:-1]
 
-MAX_SEQ_LEN = 35
+# MAX_SEQ_LEN = 35
+MAX_SEQ_LEN = 50
 
 START_TOKEN = 1
 STOP_TOKEN = 2

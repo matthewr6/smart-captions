@@ -1,20 +1,25 @@
 import numpy as np
 
 from constants import seqs_to_captions
-from data_generator import data_generator
 from adversarial_v1 import AdversarialModelV1
 from single_stage_generator_v1 import SingleStageGeneratorV1
+from data_generator import load_captions, get_split_generators
 
-# model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
-model = SingleStageGeneratorV1()
+split_generators = get_split_generators(load_captions())
+model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
+
+# 400 is ideal for split
+model.train(split_generators, iters=400, batch_size=100)
 
 # a batch size of 250 makes training converge faster but each epoch is slower.
 # but, batch size does not affect underlying function space.
 
-# steep loss decraese stops around 750 epochs, but let's try 5000 sometime once we like this
-model.train(data_generator, epochs=750, batch_size=100)
+generators = split_generators()
 
-gen = data_generator(batch_size=5)
+generator = generators['train']()
+# generator = generators['val']()
+
+gen = generator(batch_size=5)
 images, captions, next_words = next(gen)
 
 single_predictions = model.single_predict(images, captions)

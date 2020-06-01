@@ -49,38 +49,30 @@ from constants import VOCAB_SIZE, MAX_SEQ_LEN
 class SingleStageGeneratorV1():
 
     def __init__(self, *args, **kwargs):
-        self.inputs = None
-        self.outputs = None
         self.model = None
         self.compiled = False
         self.build()
 
     def build(self):
         img_input = Input(shape=(4096,), name='vgg16_processed_input')
-        # img = Dense(128, activation='relu')(img_input)
         img = Dense(256, activation='relu')(img_input)
-        # img = Dropout(0.3)(img)
+        img = Dropout(0.25)(img)
 
         embed_dim = 256
         previous_words = Input(shape=(MAX_SEQ_LEN, ), name='gen_cur_words')
         recurrent_layer = Embedding(VOCAB_SIZE, embed_dim, mask_zero=True)(previous_words)
-        # recurrent_layer = Dropout(0.3)(recurrent_layer)
-        
-        # recurrent_layer = LSTM(256)(recurrent_layer)
 
         combined = Add()([recurrent_layer, img])
         
         combined = LSTM(256)(combined)
 
-        # combined = Dense(128, activation='relu')(combined)
         combined = Dense(256, activation='relu')(combined)
         combined = BatchNormalization()(combined)
-        # combined = Dropout(0.3)(combined)
-        combined = Dense(VOCAB_SIZE, activation='softmax')(combined)
+        combined = Dropout(0.25)(combined)
+        
+        predicted_word = Dense(VOCAB_SIZE, activation='softmax')(combined)
 
-        self.inputs = [img_input, previous_words]
-        self.outputs = [combined]
-        self.model = keras.Model(inputs=self.inputs, outputs=self.outputs, name='single_stage_generator_v1')
+        self.model = keras.Model(inputs=[img_input, previous_words], outputs=[predicted_word], name='single_stage_generator_v1')
 
     def compile(self):
         # rmsprop, adagrad, adadelta might be best options
@@ -122,39 +114,50 @@ class SingleStageGeneratorV1():
     def load(self, load_path):
         self.model = keras.models.load_model(load_path)
 
-    def train(self, datagen, epochs, batch_size=10):
+    def train(self, generators, iters, batch_size=10):
         if not self.compiled:
             self.compile()
         start_time = datetime.now()
-        loss_history = []
-        acc_history = []
-        for epoch, (images, captions, next_words) in enumerate(datagen(batch_size=batch_size)):
+        history = {
+            'train_loss': [],
+            'train_acc': [],
+            'val_loss': [],
+            'val_acc': [],
+        }
+
+        train_generator = generators['train']()
+        val_generator = generators['val']()
+        
+        for iteration in range(iters):
+            images, captions, next_words = next(train_generator)
+            val_images, val_captions, val_next_words = next(val_generator)
+
             loss, accuracy = self.model.train_on_batch([images, captions], next_words)
+            val_loss, val_accuracy = self.model.test_on_batch([val_images, val_captions], val_next_words)
             elapsed_time = datetime.now() - start_time
-            loss_history.append(loss)
-            acc_history.append(accuracy)
-            print('[Epoch {}/{}] [Loss: {}] [Acc%: {}] time: {}'.format(
-                epoch,
-                epochs,
+
+            history['train_loss'].append(loss)
+            history['train_acc'].append(accuracy)
+            history['val_loss'].append(val_loss)
+            history['val_acc'].append(val_accuracy)
+            print('[Iter {}/{}] [Loss: {}] [Acc%: {}] [Val loss: {}] [Val acc%: {}] time: {}'.format(
+                iteration,
+                iters,
                 loss,
                 100 * accuracy,
+                val_loss,
+                100 * val_accuracy,
                 elapsed_time,
             ))
 
-            if epoch >= epochs:
-                break
-
-        plt.plot(range(0, epochs + 1), loss_history, label='Training Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.savefig('loss_history.png')
-        plt.clf()
-        plt.plot(range(0, epochs + 1), acc_history, label='Training Acc')
-        plt.xlabel('Epochs')
-        plt.ylabel('Acc')
-        plt.legend()
-        plt.savefig('acc_history.png')
+        for name, values in history.items():
+            print(name)
+            plt.plot(range(0, iters), values, label=name)
+            plt.xlabel('Epochs')
+            plt.ylabel(name)
+            plt.legend()
+            plt.savefig('{}_history.png'.format(name))
+            plt.clf()
 
         self.model.save('model_generator')
 
