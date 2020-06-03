@@ -8,24 +8,26 @@ from data_generator import load_captions, get_split_generators
 split_generators = get_split_generators(load_captions())
 model = AdversarialModelV1(SingleStageGeneratorV1(), 'adv1+ssgv1')
 
-# 1000 iters is a hard max on the generator only so far
-model.train(split_generators, iters=5, batch_size=100)
+# 400 is ideal for split
+model.train(split_generators, iters=400, batch_size=100)
 
 # a batch size of 250 makes training converge faster but each epoch is slower.
 # but, batch size does not affect underlying function space.
 
+generator = split_generators['train']()
+# generator = generators['val']()
 
-# gen = data_generator(batch_size=5)
-# images, captions, next_words = next(gen)
+gen = generator(batch_size=5)
+images, captions, next_words = next(gen)
 
-# single_predictions = model.single_predict(images, captions)
-# single_predictions = np.argmax(single_predictions, axis=1)
-# # print(captions)
-# print(next_words)
-# print(single_predictions)
+single_predictions = model.single_predict(images, captions)
+single_predictions = np.argmax(single_predictions, axis=1)
+# print(captions)
+print(next_words)
+print(single_predictions)
 
-# predictions = model.predict(images)
-# predicted_captions = seqs_to_captions(predictions)
-# print(seqs_to_captions(captions))
-# # print(predictions)
-# print(predicted_captions)
+predictions = model.predict(images)
+predicted_captions = seqs_to_captions(predictions)
+print(seqs_to_captions(captions))
+# print(predictions)
+print(predicted_captions)

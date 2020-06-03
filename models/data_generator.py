@@ -83,7 +83,6 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
                 image = load_image(image_name, mode=mode)
 
                 if image is None:
-                    # print('junk image')
                     continue
 
                 if len(image.shape) == 3 and image.shape[2] == 4 and mode != 'vgg16':
@@ -104,8 +103,13 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
             batch['captions'] = np.array(batch['captions'])
             batch['next_words'] = np.array(batch['next_words'])
 
+<<<<<<< HEAD
             return [batch['images'], batch['captions'], batch['next_words']]
     return data_gen
+=======
+            yield [batch['images'], batch['captions'], batch['next_words']]
+    return data_gen 
+>>>>>>> e12de3ad2a01c6b763a54cbdb8d095cec8db2804
 
 if __name__ == '__main__':
 

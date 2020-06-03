@@ -2,6 +2,9 @@ import numpy as np
 import tensorflow as tf
 from datetime import datetime
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import (
@@ -97,10 +100,13 @@ class AdversarialModelV1():
         start_time = datetime.now()
 
         history = {
-            'train_loss': [],
-            'train_acc': [],
-            'val_loss': [],
-            'val_acc': [],
+            'd_real_acc': [],
+            'd_fake_acc': [],
+            'realistic_generated': [],
+
+            'd_val_real_acc': [],
+            'd_val_fake_acc': [],
+            'val_realistic_generated': [],
         }
 
         train_generator = generators['train']()
@@ -109,32 +115,59 @@ class AdversarialModelV1():
             images, captions, next_words = next(train_generator)
             next_words = utils.to_categorical(next_words, num_classes=VOCAB_SIZE)
             val_images, val_captions, val_next_words = next(val_generator)
+            val_next_words = utils.to_categorical(val_next_words, num_classes=VOCAB_SIZE)
 
             num_examples = len(images)
+            num_val_examples = len(val_images)
             real = np.ones((num_examples,))
             fake = np.zeros((num_examples,))
+            val_real = np.ones((num_val_examples,))
+            val_fake = np.zeros((num_val_examples,))
 
             fake_next_words = self.generator.model.predict([images, captions])
-            real_loss = self.discriminator.train_on_batch([images, captions, next_words], real)
-            fake_loss = self.discriminator.train_on_batch([images, captions, fake_next_words], fake)
-            discriminator_stats = np.mean([real_loss, fake_loss], axis=0)
+            _, real_acc = self.discriminator.train_on_batch([images, captions, next_words], real)
+            _, fake_acc = self.discriminator.train_on_batch([images, captions, fake_next_words], fake)
+            _, generated_acc = self.full_model.train_on_batch([images, captions], real)
 
-            generator_stats = self.full_model.train_on_batch([images, captions], real)
+            val_fake_next_words = self.generator.model.predict([val_images, val_captions])
+            _, real_val_acc = self.discriminator.test_on_batch([val_images, val_captions, val_next_words], val_real)
+            _, fake_val_acc = self.discriminator.test_on_batch([val_images, val_captions, val_fake_next_words], val_fake)
+            _, val_generated_acc = self.full_model.test_on_batch([val_images, val_captions], val_real)
 
             elapsed_time = datetime.now() - start_time
-            print('[Iter {}/{}]\n\t[D loss: {}, acc: {}, {}, mean {}]\n\t[Full loss: {}]\n\t[Realistic generated%: {}]\n\t[Time: {}]'.format(
+            print('[Iter {}/{}]\n\t[D acc (real/fake): {}, {}]\n\t[Realistic generated: {}]\n\t[Val D acc (real/fake): {}, {}]\n\t[Val realistic: {}]\n\t[Time: {}]'.format(
                 iteration,
                 iters,
-                discriminator_stats[0],
-                100 * real_loss[1],
-                100 * fake_loss[1],
-                100 * discriminator_stats[1],
-                generator_stats[0],
-                100 * generator_stats[1],
+                real_acc,
+                fake_acc,
+                generated_acc,
+                real_val_acc,
+                fake_val_acc,
+                val_generated_acc,
                 elapsed_time
             ))
+
+            history['d_real_acc'].append(real_acc)
+            history['d_fake_acc'].append(fake_acc)
+            history['realistic_generated'].append(generated_acc)
+
+            history['d_val_real_acc'].append(real_val_acc)
+            history['d_val_fake_acc'].append(fake_val_acc)
+            history['val_realistic_generated'].append(val_generated_acc)
+
+        for name, values in history.items():
+            print(name)
+            plt.plot(range(0, iters), values, label=name)
+            plt.xlabel('Iteration')
+            plt.ylabel(name)
+            plt.legend()
+            plt.savefig('{}_history.png'.format(name))
+            plt.clf()
 
         self.full_model.save('model_{}'.format(self.name))
 
     def predict(self, images):
         return self.generator.predict(images)
+
+    def single_predict(self, images, captions):
+        return self.generator.single_predict(images, captions)
