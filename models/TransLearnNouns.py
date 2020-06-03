@@ -31,7 +31,7 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 
 def load_image(image_path):
-    image_path = 'C:/Users/FitzL/Desktop/data/processed_vgg16/{}.npy'.format(image_path)
+    image_path = '.../data/processed_vgg16/{}.npy'.format(image_path)
     if not os.path.isfile(image_path):
         return None
     image = np.load(image_path)
@@ -39,7 +39,7 @@ def load_image(image_path):
 
 def load_transfer_data(filename):
     nouns = []
-    with open('C:/Users/FitzL/Desktop/data/caption_nouns_vgg16.txt', 'r') as f:
+    with open('.../data/caption_nouns_vgg16.txt', 'r') as f:
         for line in f:
             nouns.append(line[:-1])
     words = get_lookup()
@@ -117,7 +117,7 @@ def get_basic_model(verbose=False):
 
 def decode_binarized_caption(caption, filename, ext=""):
     nouns = []
-    with open('C:/Users/FitzL/Desktop/data/caption_nouns_vgg16.txt', 'r') as f:
+    with open('.../data/caption_nouns_vgg16.txt', 'r') as f:
         for line in f:
             nouns.append(line[:-1])
     out = set()
@@ -151,7 +151,7 @@ def main(epochs=15, steps_per_epoch=20):
     losses = []
 
     for i in range(1, 6):
-        filename = "C:/Users/FitzL/Desktop/data/captions_" + str(i) + ".txt"
+        filename = ".../data/captions_" + str(i) + ".txt"
         print("Current file: " + filename)
         batch = next(transfer_generator(filename))
         print(decode_binarized_caption(batch[1][0], filename))

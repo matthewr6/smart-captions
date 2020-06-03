@@ -58,8 +58,8 @@ def create_nouns(filename):
         if len(wn.synsets(word, 'n')) > 0 :
             nouns.append(word)
     
-    with open("C:/Users/FitzL/Desktop/data/caption_nouns_vgg16.txt", "w") as f:
+    with open(".../data/caption_nouns_vgg16.txt", "w") as f:
         f.writelines([LemmaT.lemmatize(line)+"\n" for line in nouns])
     f.close()
 
-create_nouns("C:/Users/FitzL/Desktop/data/captions_lookup.txt")
+create_nouns(".../data/captions_lookup.txt")
