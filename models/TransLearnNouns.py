@@ -23,29 +23,23 @@ from tensorflow.keras.layers import (
 )
 
 from tensorflow.keras.optimizers import (
-    Adam
+    Adamax
 )
 
 import random
 from sklearn.model_selection import train_test_split
 import numpy as np
 
-cache = {}
-use_cache = False
 def load_image(image_path):
-    if cache.get(image_path):
-        return cache.get(image_path)
     image_path = 'C:/Users/FitzL/Desktop/data/processed_vgg16/{}.npy'.format(image_path)
     if not os.path.isfile(image_path):
         return None
     image = np.load(image_path)
-    if use_cache:
-        cache[image_path] = image
     return image
 
 def load_transfer_data(filename):
     nouns = []
-    with open('C:/Users/FitzL/Desktop/data/caption_nouns.txt', 'r') as f:
+    with open('C:/Users/FitzL/Desktop/data/caption_nouns_vgg16.txt', 'r') as f:
         for line in f:
             nouns.append(line[:-1])
     words = get_lookup()
@@ -94,8 +88,6 @@ def transfer_generator(filename, batch_size=100):
         batch['captions'] = np.array(batch['captions'])
         yield (batch['images'], batch['captions'])
 
-
-
 def get_basic_model(verbose=False):
     model = Sequential()
     model.add(Reshape((64,64,1), input_shape=(4096,)))
@@ -117,7 +109,7 @@ def get_basic_model(verbose=False):
     model.add(Dropout(0.5))
     model.add(Dense(64, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(65, activation='sigmoid'))
+    model.add(Dense(2929, activation='sigmoid'))
     
     if verbose:
         model.summary()
@@ -125,7 +117,7 @@ def get_basic_model(verbose=False):
 
 def decode_binarized_caption(caption, filename, ext=""):
     nouns = []
-    with open('C:/Users/FitzL/Desktop/data/caption_nouns.txt', 'r') as f:
+    with open('C:/Users/FitzL/Desktop/data/caption_nouns_vgg16.txt', 'r') as f:
         for line in f:
             nouns.append(line[:-1])
     out = set()
@@ -134,10 +126,26 @@ def decode_binarized_caption(caption, filename, ext=""):
             out.add(nouns[i])
     return out
 
-def main():
+def plot_loss(losses, epochs):
+    plt.style.use("ggplot")
+    plt.figure()
+    
+    plt.plot(range(1, epochs+1), losses[0], color="red", label="captions_1")
+    plt.plot(range(1, epochs+1), losses[1], color="orange", label="captions_2")
+    plt.plot(range(1, epochs+1), losses[2], color="green", label="captions_3")
+    plt.plot(range(1, epochs+1), losses[3], color="blue", label="captions_4")
+    plt.plot(range(1, epochs+1), losses[4], color="purple", label="captions_5")
+
+    plt.title("Model Loss")
+    plt.xlabel("Epoch Number")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.savefig("C:/Users/FitzL/Desktop/data/tln_loss_plot.png")
+
+def main(epochs=15, steps_per_epoch=20):
     model = get_basic_model(verbose=False)
-    opt = Adam()
-    model.compile(loss="binary_crossentropy", optimizer=opt)
+    opt = Adamax()
+    model.compile(loss="cosine_similarity", optimizer=opt)
     
     preds = []
     losses = []
@@ -148,21 +156,31 @@ def main():
         batch = next(transfer_generator(filename))
         print(decode_binarized_caption(batch[1][0], filename))
 
-        H = model.fit(transfer_generator(filename), epochs=15, steps_per_epoch=5)
+        H = model.fit(transfer_generator(filename), epochs=epochs, steps_per_epoch=steps_per_epoch)
 
         pred = np.round(model.predict(batch[0]))
         preds.append(pred)
 
-        print(pred)
-        print(batch[1])
-        for i in range(10):
-            print(decode_binarized_caption(pred[i], filename), decode_binarized_caption(batch[1][i], filename))
+        # print(pred)
+        # print(batch[1])
+        # for i in range(10):
+        #     print(decode_binarized_caption(pred[i], filename), decode_binarized_caption(batch[1][i], filename))
         
         losses.append(H.history["loss"])
+        print('\n')
     
-    for i in range(5):
-        print("Loss for captions_" + str(i+1))
-        print(losses[i])
+    plot_loss(losses, epochs)
+    avg_loss_by_file = []
+    all_loss = []
+    for loss_file in losses:
+        avg_loss_by_file.append(np.mean(loss_file))
+        all_loss = all_loss + loss_file
+    
+    print("Avg. Loss by Caption file")
+    print(avg_loss_by_file)
+    print("Avg. Loss Overall")
+    print(np.mean(all_loss))
+
 
 
 

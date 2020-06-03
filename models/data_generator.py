@@ -13,8 +13,8 @@ from constants import VOCAB_SIZE, seqs_to_captions, nonrare_words, MAX_SEQ_LEN, 
 # null = 0
 # word tokens start at 3
 
-def load_captions():
-    with open('../data/captions_withstop.txt') as f:
+def load_captions(filename):
+    with open(filename) as f:
         data = f.readlines()
     loaded = []
     for example in data:
@@ -41,7 +41,7 @@ def load_image(image_path, mode='vgg16'):
     if cache.get(image_path):
         return cache.get(image_path)
     if mode == 'vgg16':
-        image_path = '../data/processed_vgg16/{}.npy'.format(image_path)
+        image_path = 'C:/Users/FitzL/Desktop/data/processed_vgg16/{}.npy'.format(image_path)
     else:
         image_path = '../data/processed/{}.npy'.format(image_path)
     if not os.path.isfile(image_path):
@@ -63,6 +63,7 @@ def get_split_generators(all_data, batch_size=100, mode='vgg16', split=(70, 20, 
     generator_dict['val'] = define_data_generator(val, batch_size, mode)
     generator_dict['test'] = define_data_generator(test, batch_size, mode)
 
+    print("--------------------------------------")
     return generator_dict
 
 
@@ -103,7 +104,7 @@ def define_data_generator(data, batch_size=100, mode='vgg16'):
             batch['captions'] = np.array(batch['captions'])
             batch['next_words'] = np.array(batch['next_words'])
 
-            yield [batch['images'], batch['captions'], batch['next_words']]
+            return [batch['images'], batch['captions'], batch['next_words']]
     return data_gen
 
 if __name__ == '__main__':
@@ -113,7 +114,8 @@ if __name__ == '__main__':
     # print(images.shape, captions.shape, next_words.shape)
 
     # Usage example!
-    data = load_captions()
+    filename = ".../data/captions.txt"
+    data = load_captions(filename)
     gen_dict = get_split_generators(data, batch_size=5)
     train = gen_dict['train']
     print(next(train()))
